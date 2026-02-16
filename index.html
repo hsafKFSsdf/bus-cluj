@@ -92,13 +92,20 @@
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
     // 2. Stații
-    const stations = [
-        {id: "148", n: "Sora", lat: 46.7719, lng: 23.5894},
-        {id: "143", n: "Memorandumului", lat: 46.7695, lng: 23.5855},
-        {id: "512", n: "Florești Primărie", lat: 46.7454, lng: 23.4832},
-        {id: "481", n: "Polus Center", lat: 46.7512, lng: 23.5273}
-    ];
-
+   const stations = [
+    // CLUJ-NAPOCA
+    {id: "148", n: "Sora (Centru)", lat: 46.771960, lng: 23.589531},
+    {id: "143", n: "Memorandumului Sud", lat: 46.769255, lng: 23.585220},
+    {id: "350", n: "Gara Mică", lat: 46.784520, lng: 23.586610},
+    {id: "24", n: "Minerva (Mănăștur)", lat: 46.758650, lng: 23.546120},
+    {id: "481", n: "Vivo (Polus)", lat: 46.751430, lng: 23.527810},
+    
+    // FLOREȘTI
+    {id: "512", n: "Florești Primărie", lat: 46.745422, lng: 23.483251},
+    {id: "510", n: "Oncos Florești", lat: 46.748350, lng: 23.501180},
+    {id: "515", n: "Luna de Sus", lat: 46.741210, lng: 23.442310},
+    {id: "570", n: "Stejarului (Florești)", lat: 46.751120, lng: 23.512450}
+];
     // 3. Adăugare Marcaje
     stations.forEach(s => {
         L.circleMarker([s.lat, s.lng], {
@@ -156,3 +163,4 @@
 </script>
 </body>
 </html>
+

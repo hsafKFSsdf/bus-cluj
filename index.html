@@ -15,6 +15,7 @@
         .bus { display: flex; justify-content: space-between; padding: 15px 0; border-bottom: 1px solid #333; align-items: center; }
         .line { background: #d32f2f; color: white; padding: 5px 10px; border-radius: 8px; font-weight: bold; font-size: 18px; }
         .time { color: var(--accent); font-weight: 800; font-size: 22px; }
+        .error-msg { color: #ff6b6b; font-size: 14px; padding: 10px; border: 1px solid #ff6b6b; border-radius: 5px; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -41,14 +42,11 @@
 
     let map, userLoc;
 
-    // Stații Hub pentru test rapid
     const stations = [
-        {id: "277", n: "Sora", lat: 46.7719, lng: 23.5894},
+        {id: "277", n: "Sora (Spre Florești)", lat: 46.7719, lng: 23.5894},
         {id: "275", n: "Memorandumului Sud", lat: 46.7691, lng: 23.5851},
         {id: "512", n: "Florești Primărie", lat: 46.7454, lng: 23.4832},
-        {id: "515", n: "Oncos Florești", lat: 46.7483, lng: 23.5011},
-        {id: "302", n: "Minerva", lat: 46.7591, lng: 23.5511},
-        {id: "467", n: "Iulius Mall Sud", lat: 46.7725, lng: 23.6262}
+        {id: "515", n: "Oncos Florești", lat: 46.7483, lng: 23.5011}
     ];
 
     map = L.map('map', { zoomControl: false }).setView([46.7712, 23.5923], 13);
@@ -75,26 +73,43 @@
         list.innerHTML = `<div style="color: #888;">Se încarcă date live...</div>`;
         
         try {
-            const res = await fetch(`https://api.tranzy.ai/v1/opendata/arrivals/${id}`, {
+            const url = `https://api.tranzy.ai/v1/opendata/arrivals/${id}`;
+            const res = await fetch(url, {
+                method: 'GET',
+                mode: 'cors', // FOARTE IMPORTANT pentru GitHub
                 headers: {
                     'X-Agency-Id': AGENCY_ID,
-                    'X-App-Key': API_KEY
+                    'X-App-Key': API_KEY,
+                    'Accept': 'application/json'
                 }
             });
+
+            if (!res.ok) {
+                const errorData = await res.text();
+                throw new Error(`Cod: ${res.status}`);
+            }
+
             const data = await res.json();
             
             if(!data || data.length === 0) {
-                list.innerHTML = "Nu sunt sosiri programate.";
+                list.innerHTML = "Nu sunt sosiri programate în următoarele 30 min.";
             } else {
                 list.innerHTML = data.map(b => `
                     <div class="bus">
                         <span class="line">${b.routeShortName}</span>
-                        <span class="time">${Math.round(b.arrivalMinutes)} min</span>
+                        <div style="text-align: right;">
+                            <span class="time">${Math.round(b.arrivalMinutes)} min</span>
+                            <div style="font-size: 10px; color: #888;">${b.tripHeadsign || ''}</div>
+                        </div>
                     </div>
                 `).join('');
             }
         } catch (e) {
-            list.innerHTML = `<div style="color: #ff6b6b;">Eroare conectare server.</div>`;
+            list.innerHTML = `<div class="error-msg">
+                <strong>Eroare la serverul Tranzy</strong><br>
+                Detaliu: ${e.message}<br>
+                <small>Asigură-te că App Key-ul este activ în panoul Tranzy.</small>
+            </div>`;
         }
     }
 </script>

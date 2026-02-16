@@ -1,33 +1,114 @@
-// Lista stațiilor cu coordonate precise pentru Google Maps
-    const stations = [
-        {n: "Sora (Spre Florești)", lat: 46.77192, lng: 23.58944},
-        {n: "Memorandumului Sud", lat: 46.76911, lng: 23.58512},
-        {n: "Florești Primărie", lat: 46.74542, lng: 23.48321},
-        {n: "Oncos Florești", lat: 46.74831, lng: 23.50114},
-        {n: "Iulius Mall Sud", lat: 46.77255, lng: 23.62621},
-        {n: "Minerva (Mănăștur)", lat: 46.75912, lng: 23.55113}
-    ];
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bus Live Cluj-Florești</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body { margin: 0; padding: 0; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        
+        #map { height: 100vh; width: 100vw; background: #1a1a1a; }
 
-    // Inițializare hartă (fără schimbări aici)
-    const map = L.map('map', { zoomControl: false }).setView([46.7712, 23.5923], 13);
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+        /* Stil pentru ferestrele pop-up (Google Maps link) */
+        .leaflet-popup-content-wrapper {
+            background: #222;
+            color: #fff;
+            border-radius: 12px;
+            padding: 5px;
+        }
+        .leaflet-popup-tip { background: #222; }
 
-    // Afișare locație utilizator (punctul albastru)
-    map.locate({watch: true, enableHighAccuracy: true});
-    const userMarker = L.circle([0,0], {radius: 8, color: '#fff', fillColor: '#007AFF', fillOpacity: 1}).addTo(map);
-    map.on('locationfound', e => userMarker.setLatLng(e.latlng));
+        .btn-go {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+        }
 
-    // Adăugare stații
-    stations.forEach(s => {
-        L.circleMarker([s.lat, s.lng], {
-            radius: 12, fillColor: '#4CAF50', color: '#fff', weight: 3, fillOpacity: 1
-        }).addTo(map).on('click', () => {
-            
-            // CONSTRUIRE LINK GOOGLE MAPS LIVE
-            // Acest link forțează Google Maps să deschidă stația și să arate orele de tranzit
-            const googleUrl = `https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}`;
-            
-            // Opțiune: Deschidem într-un tab nou sau direct în aplicația de Maps
-            window.location.href = googleUrl;
+        .station-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // 1. Lista stațiilor (am adăugat câteva importante pentru tine)
+        const stations = [
+            {n: "Sora (Spre Florești)", lat: 46.77192, lng: 23.58944},
+            {n: "Memorandumului Sud", lat: 46.76911, lng: 23.58512},
+            {n: "Florești Primărie", lat: 46.74542, lng: 23.48321},
+            {n: "Oncos Florești", lat: 46.74831, lng: 23.50114},
+            {n: "Iulius Mall Sud", lat: 46.77255, lng: 23.62621},
+            {n: "Minerva (Mănăștur)", lat: 46.75912, lng: 23.55113},
+            {n: "Polus Center", lat: 46.75123, lng: 23.52734}
+        ];
+
+        // 2. Inițializare Hartă pe Satelit
+        const map = L.map('map', { 
+            zoomControl: false,
+            attributionControl: false 
+        }).setView([46.765, 23.550], 13);
+
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+
+        // 3. Afișare locația TA (Punctul Albastru)
+        map.locate({watch: true, enableHighAccuracy: true});
+        const userMarker = L.circleMarker([0,0], {
+            radius: 7,
+            color: '#fff',
+            fillColor: '#007AFF',
+            fillOpacity: 1,
+            weight: 2
+        }).addTo(map);
+
+        map.on('locationfound', (e) => {
+            userMarker.setLatLng(e.latlng);
         });
-    });
+
+        // 4. Adăugare Stații pe Hartă
+        stations.forEach(s => {
+            const marker = L.circleMarker([s.lat, s.lng], {
+                radius: 11,
+                fillColor: '#4CAF50',
+                color: '#fff',
+                weight: 3,
+                fillOpacity: 1
+            }).addTo(map);
+
+            // Când apeși pe stație, apare un mic meniu
+            marker.bindPopup(`
+                <b class="station-title">${s.n}</b>
+                <div style="color: #bbb; font-size: 12px;">Vezi orele live prin Google Transit:</div>
+                <a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}" 
+                   target="_blank" class="btn-go">
+                   DESCHIDE LIVE
+                </a>
+            `);
+        });
+
+        // Mesaj de eroare dacă locația nu e activată
+        map.on('locationerror', () => {
+            console.log("Locația nu a putut fi accesată.");
+        });
+    </script>
+</body>
+</html>

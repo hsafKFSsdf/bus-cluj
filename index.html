@@ -3,48 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CJ Bus Live</title>
+    <title>Cluj-Florești Live</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; background: #000; font-family: sans-serif; color: white; }
+        :root { --accent: #4ade80; }
+        body { margin: 0; background: #000; font-family: sans-serif; color: white; overflow: hidden; }
         #map { height: 100vh; width: 100vw; }
-        #status { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); padding: 5px 15px; border-radius: 20px; z-index: 9999; border: 1px solid #4ade80; font-size: 12px; }
-        #panel { position: fixed; bottom: 0; left: 0; right: 0; background: #1e1e1e; padding: 20px; border-radius: 20px 20px 0 0; display: none; z-index: 1000; border-top: 3px solid #4ade80; }
-        .bus { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; }
-        .line { background: #d32f2f; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
-        .time { color: #4ade80; font-weight: bold; font-size: 18px; }
+        #panel { position: fixed; bottom: 0; left: 0; right: 0; background: #1e1e1e; padding: 20px; border-radius: 20px 20px 0 0; display: none; z-index: 1000; border-top: 3px solid var(--accent); max-height: 40vh; overflow-y: auto; }
+        .bus { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #333; }
+        .line { background: #d32f2f; color: white; padding: 4px 8px; border-radius: 5px; font-weight: bold; }
+        .time { color: var(--accent); font-weight: bold; font-size: 20px; }
+        .btn { position: fixed; right: 15px; background: #2d2d2d; color: white; border: 1px solid #444; width: 50px; height: 50px; border-radius: 50%; z-index: 999; font-size: 20px; }
     </style>
 </head>
 <body>
 
-<div id="status">Se conectează direct la Tranzy...</div>
+<button class="btn" style="bottom: 20px;" onclick="location.reload()">🔄</button>
+
 <div id="map"></div>
 
 <div id="panel">
     <div style="display:flex; justify-content:space-between; align-items:center;">
         <h3 id="st-name" style="margin:0">Stație</h3>
-        <button onclick="document.getElementById('panel').style.display='none'" style="background:none; border:none; color:#888; font-size:30px;">&times;</button>
+        <button onclick="document.getElementById('panel').style.display='none'" style="background:none; border:none; color:#888; font-size:35px;">&times;</button>
     </div>
     <div id="arrivals-list" style="margin-top:10px;"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+    // Cheia ta oficială
     const API_KEY = 'yyAwUKMbMg7GFnXqDqQxfGEATuRpXGrsywdhaHZO';
 
-    // Lista stațiilor cu ID-uri corecte dintr-o sursă sigură
+    // Am pus stațiile direct aici ca să nu mai dea eroare la încărcare
     const myStops = [
         {id: "148", n: "Sora", lat: 46.7719, lng: 23.5894},
-        {id: "143", n: "Memorandumului", lat: 46.7695, lng: 23.5855},
+        {id: "143", n: "Memorandumului Sud", lat: 46.7691, lng: 23.5851},
+        {id: "512", n: "Florești Primărie", lat: 46.7454, lng: 23.4832},
+        {id: "515", n: "Oncos Florești", lat: 46.7483, lng: 23.5011},
         {id: "442", n: "Iulius Mall", lat: 46.7725, lng: 23.6262},
-        {id: "114", n: "Minerva", lat: 46.7591, lng: 23.5511},
-        {id: "512", n: "Florești Primărie", lat: 46.7454, lng: 23.4832}
+        {id: "114", n: "Minerva (Mănăștur)", lat: 46.7591, lng: 23.5511}
     ];
 
-    const map = L.map('map', { zoomControl: false }).setView([46.7712, 23.5923], 14);
+    const map = L.map('map', { zoomControl: false }).setView([46.7712, 23.5923], 13);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-    // Punem stațiile pe hartă
+    // Punem markerii pe hartă
     myStops.forEach(s => {
         L.circleMarker([s.lat, s.lng], {
             radius: 10, fillColor: '#4CAF50', color: '#fff', weight: 2, fillOpacity: 1
@@ -59,19 +63,17 @@
         const list = document.getElementById('arrivals-list');
         list.innerHTML = "Se caută autobuze...";
         
+        // Folosim un proxy header pentru a evita CORS pe GitHub
+        const proxy = "https://corsproxy.io/?";
+        const url = `https://api.tranzy.ai/v1/opendata/arrivals/${id}`;
+
         try {
-            // Încercăm cererea directă fără proxy (GitHub Pages permite asta pentru HTTPS)
-            const res = await fetch(`https://api.tranzy.ai/v1/opendata/arrivals/${id}`, {
-                method: 'GET',
+            const res = await fetch(proxy + encodeURIComponent(url), {
                 headers: {
                     'X-Agency-Id': '1',
-                    'X-App-Key': API_KEY,
-                    'Accept': 'application/json'
+                    'X-App-Key': API_KEY
                 }
             });
-
-            if (!res.ok) throw new Error("Status: " + res.status);
-
             const data = await res.json();
             
             if(!data || data.length === 0) {
@@ -84,14 +86,10 @@
                     </div>
                 `).join('');
             }
-            document.getElementById('status').style.display = 'none';
         } catch (e) {
-            list.innerHTML = "Eroare: " + e.message + ". Verifică setările API.";
-            console.error(e);
+            list.innerHTML = "Eroare la server. Încearcă din nou.";
         }
     }
-
-    document.getElementById('status').innerText = "✅ Hartă gata. Apasă pe o stație.";
 </script>
 </body>
 </html>

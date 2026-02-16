@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cluj Bus Live PRO</title>
+    <title>Bus Live Cluj-Florești</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -11,60 +11,58 @@
         :root {
             --primary: #4CAF50;
             --bg: #0a0a0a;
-            --panel-bg: rgba(26, 26, 26, 0.95);
+            --panel-bg: rgba(20, 20, 20, 0.95);
         }
 
-        body { margin: 0; background: var(--bg); font-family: -apple-system, sans-serif; color: white; overflow: hidden; }
+        body, html { margin: 0; padding: 0; background: var(--bg); font-family: -apple-system, sans-serif; color: white; overflow: hidden; }
         
-        #map { height: 100vh; width: 100vw; }
+        #map { height: 100vh; width: 100vw; z-index: 1; }
 
-        /* Panel Sosiri */
+        /* Panou Sosiri (Glassmorphism) */
         #arrivals-panel { 
             position: fixed; bottom: 0; left: 0; right: 0; 
             background: var(--panel-bg); 
-            backdrop-filter: blur(10px);
-            padding: 25px; 
+            backdrop-filter: blur(15px);
+            padding: 20px; 
             border-radius: 25px 25px 0 0; 
             transform: translateY(100%); 
             transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1); 
             z-index: 1000; 
-            border-top: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 -10px 25px rgba(0,0,0,0.5);
-            max-height: 70vh;
+            border-top: 1px solid rgba(255,255,255,0.15);
+            max-height: 65vh;
             overflow-y: auto;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
         }
 
         #arrivals-panel.active { transform: translateY(0); }
 
-        .handle { width: 40px; height: 5px; background: #444; border-radius: 10px; margin: -10px auto 15px; }
+        .handle { width: 40px; height: 4px; background: #555; border-radius: 10px; margin: -5px auto 15px; }
 
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         
-        h2 { margin: 0; font-size: 22px; color: var(--primary); }
+        h2 { margin: 0; font-size: 20px; color: var(--primary); font-weight: 800; }
 
-        .close-btn { background: #333; border: none; color: white; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+        .close-btn { background: #333; border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 20px; font-weight: bold; }
 
-        /* Lista Bus */
+        /* Lista Autobuze */
         .bus-item { 
             display: flex; justify-content: space-between; align-items: center;
-            padding: 18px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding: 15px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
         }
 
-        .bus-info { display: flex; align-items: center; gap: 15px; }
+        .bus-info { display: flex; align-items: center; gap: 12px; }
         
         .bus-badge { 
             background: #e31e24; color: white; 
-            min-width: 45px; height: 35px; 
+            min-width: 40px; height: 30px; 
             display: flex; align-items: center; justify-content: center;
-            border-radius: 8px; font-weight: 800; font-size: 18px;
+            border-radius: 6px; font-weight: bold; font-size: 16px;
         }
 
-        .bus-time { color: var(--primary); font-weight: 700; font-size: 22px; }
-        .bus-unit { font-size: 12px; color: #888; margin-left: 4px; }
+        .bus-time { color: var(--primary); font-weight: bold; font-size: 20px; }
+        .bus-unit { font-size: 12px; color: #888; margin-left: 3px; }
 
-        /* Status Messages */
-        .loader { text-align: center; padding: 40px; color: #888; }
-        .error-msg { color: #ff9800; text-align: center; padding: 20px; font-weight: 500; }
+        .status-msg { text-align: center; padding: 30px; color: #aaa; font-size: 14px; line-height: 1.5; }
     </style>
 </head>
 <body>
@@ -75,8 +73,8 @@
     <div class="handle"></div>
     <div class="header">
         <div>
-            <h2 id="st-name">Stație</h2>
-            <div id="st-id" style="font-size: 12px; color: #666;">ID Stație</div>
+            <h2 id="st-name">Selectează o stație</h2>
+            <div id="st-id" style="font-size: 11px; color: #777; margin-top: 2px;">Apasă pe punctele verzi</div>
         </div>
         <button class="close-btn" onclick="togglePanel(false)">&times;</button>
     </div>
@@ -85,66 +83,70 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // 1. Configurare Hartă
-    const map = L.map('map', { zoomControl: false }).setView([46.76, 23.55], 13);
-    
-    // Satelit Dark de la ArcGIS
+    // 1. Inițializare Hartă pe Satelit
+    const map = L.map('map', { 
+        zoomControl: false, 
+        attributionControl: false 
+    }).setView([46.75, 23.53], 13); // Centrat între Cluj și Florești
+
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-    // 2. Stații
-   const stations = [
-    // CLUJ-NAPOCA
-    {id: "148", n: "Sora (Centru)", lat: 46.771960, lng: 23.589531},
-    {id: "143", n: "Memorandumului Sud", lat: 46.769255, lng: 23.585220},
-    {id: "350", n: "Gara Mică", lat: 46.784520, lng: 23.586610},
-    {id: "24", n: "Minerva (Mănăștur)", lat: 46.758650, lng: 23.546120},
-    {id: "481", n: "Vivo (Polus)", lat: 46.751430, lng: 23.527810},
-    
-    // FLOREȘTI
-    {id: "512", n: "Florești Primărie", lat: 46.745422, lng: 23.483251},
-    {id: "510", n: "Oncos Florești", lat: 46.748350, lng: 23.501180},
-    {id: "515", n: "Luna de Sus", lat: 46.741210, lng: 23.442310},
-    {id: "570", n: "Stejarului (Florești)", lat: 46.751120, lng: 23.512450}
-];
-    // 3. Adăugare Marcaje
-    stations.forEach(s => {
-        L.circleMarker([s.lat, s.lng], {
-            radius: 12, fillColor: '#4CAF50', color: '#fff', weight: 3, fillOpacity: 1
-        }).addTo(map).on('click', () => fetchArrivals(s));
-    });
+    // 2. Locația utilizatorului (Punctul Albastru)
+    map.locate({watch: true, enableHighAccuracy: true});
+    const userMarker = L.circleMarker([0,0], {
+        radius: 7, color: '#fff', fillColor: '#007AFF', fillOpacity: 1, weight: 2
+    }).addTo(map);
+    map.on('locationfound', (e) => userMarker.setLatLng(e.latlng));
 
-    // 4. Funcția de Fetch (folosește folderul /api)
+    // 3. Încărcare automată a stațiilor
+    async function loadStations() {
+        try {
+            const res = await fetch('/api/stops');
+            if (!res.ok) throw new Error();
+            const stops = await res.json();
+
+            stops.forEach(s => {
+                L.circleMarker([s.stopLat, s.stopLon], {
+                    radius: 6, fillColor: '#4CAF50', color: '#fff', weight: 1, fillOpacity: 0.9
+                })
+                .addTo(map)
+                .on('click', () => fetchArrivals(s));
+            });
+        } catch (err) {
+            console.error("Nu s-au putut încărca stațiile. Serverul e probabil offline.");
+        }
+    }
+
+    // 4. Preluare Sosiri Live
     async function fetchArrivals(s) {
         const panel = document.getElementById('arrivals-panel');
         const list = document.getElementById('list-container');
         
-        document.getElementById('st-name').innerText = s.n;
-        document.getElementById('st-id').innerText = `ID: ${s.id}`;
+        document.getElementById('st-name').innerText = s.stopName;
+        document.getElementById('st-id').innerText = `ID Stație: ${s.stopId}`;
         
         panel.classList.add('active');
-        list.innerHTML = '<div class="loader">Se caută autobuze live...</div>';
+        list.innerHTML = '<div class="status-msg">Se caută autobuze live...</div>';
 
         try {
-            const res = await fetch(`/api/arrivals?id=${s.id}`);
+            const res = await fetch(`/api/arrivals?id=${s.stopId}`);
             const data = await res.json();
 
-            // Gestionare Erori (inclusiv 502 de la Tranzy)
             if (!res.ok || data.error) {
-                list.innerHTML = `<div class="error-msg">⚠️ Serverul Tranzy (OpenData) nu răspunde acum. Probabil este în mentenanță de noapte. Reîncearcă după ora 05:00.</div>`;
+                list.innerHTML = `<div class="status-msg" style="color:#ff9800">⚠️ Serverul de date este momentan indisponibil (Eroare 502/404). Revenim curând!</div>`;
                 return;
             }
 
-            if (!Array.isArray(data) || data.length === 0) {
-                list.innerHTML = '<div class="loader">Nu s-au găsit autobuze active pentru această stație în următoarele 30 de minute.</div>';
+            if (data.length === 0) {
+                list.innerHTML = '<div class="status-msg">Momentan nu sunt autobuze programate să ajungă în această stație.</div>';
                 return;
             }
 
-            // Generare listă sosiri
             list.innerHTML = data.map(bus => `
                 <div class="bus-item">
                     <div class="bus-info">
                         <div class="bus-badge">${bus.routeShortName}</div>
-                        <div style="font-size: 14px;">Spre capăt de linie</div>
+                        <div style="font-size: 14px; color: #eee;">Spre capăt de linie</div>
                     </div>
                     <div class="bus-time">
                         ${Math.round(bus.arrivalMinutes)}<span class="bus-unit">min</span>
@@ -153,14 +155,18 @@
             `).join('');
 
         } catch (err) {
-            list.innerHTML = '<div class="error-msg">Eroare de conexiune. Verifică dacă folderul /api este configurat corect pe Vercel.</div>';
+            list.innerHTML = '<div class="status-msg">Eroare de conexiune. Reîncearcă mai târziu.</div>';
         }
     }
 
     function togglePanel(show) {
         document.getElementById('arrivals-panel').classList.toggle('active', show);
     }
+
+    // Pornește încărcarea
+    loadStations();
 </script>
 </body>
 </html>
+
 

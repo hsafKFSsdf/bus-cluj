@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CJ-FL Bus Live</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root { --bg: #1a1a1a; --accent: #4ade80; }
+        body { margin: 0; font-family: -apple-system, sans-serif; background: #000; color: white; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; }
+        .controls { position: fixed; right: 15px; bottom: 30px; display: flex; flex-direction: column; gap: 10px; z-index: 999; }
+        .btn { background: #2d2d2d; color: white; border: 1px solid #444; width: 55px; height: 55px; border-radius: 50%; font-size: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        #panel { position: fixed; bottom: 0; left: 0; right: 0; background: #1e1e1e; padding: 20px; border-radius: 25px 25px 0 0; display: none; z-index: 1000; border-top: 3px solid var(--accent); max-height: 50vh; overflow-y: auto; }
+        .bus { display: flex; justify-content: space-between; padding: 15px 0; border-bottom: 1px solid #333; align-items: center; }
+        .line { background: #d32f2f; color: white; padding: 5px 10px; border-radius: 8px; font-weight: bold; font-size: 18px; }
+        .time { color: var(--accent); font-weight: 800; font-size: 22px; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <button class="btn" onclick="location.reload()">🔄</button>
+    <button class="btn" onclick="recenter()">🎯</button>
+</div>
+
+<div id="map"></div>
+
+<div id="panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+        <h3 id="st-name" style="margin:0; font-size: 20px;">Stație</h3>
+        <button onclick="document.getElementById('panel').style.display='none'" style="background:none; border:none; color:#888; font-size:40px; line-height: 1;">&times;</button>
+    </div>
+    <div id="arrivals-list"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const API_KEY = 'yyAwUKMbMg7GFnXqDqQxfGEATuRpXGrsywdhaHZO';
+    const AGENCY_ID = '1';
+
+    let map, userLoc;
+
+    // Stații Hub pentru test rapid
+    const stations = [
+        {id: "277", n: "Sora", lat: 46.7719, lng: 23.5894},
+        {id: "275", n: "Memorandumului Sud", lat: 46.7691, lng: 23.5851},
+        {id: "512", n: "Florești Primărie", lat: 46.7454, lng: 23.4832},
+        {id: "515", n: "Oncos Florești", lat: 46.7483, lng: 23.5011},
+        {id: "302", n: "Minerva", lat: 46.7591, lng: 23.5511},
+        {id: "467", n: "Iulius Mall Sud", lat: 46.7725, lng: 23.6262}
+    ];
+
+    map = L.map('map', { zoomControl: false }).setView([46.7712, 23.5923], 13);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+
+    const meIcon = L.circle([0,0], {radius: 8, color: '#fff', weight: 2, fillColor: '#4285F4', fillOpacity: 1}).addTo(map);
+    map.locate({watch: true, enableHighAccuracy: true});
+    map.on('locationfound', e => { userLoc = e.latlng; meIcon.setLatLng(e.latlng); });
+    
+    function recenter() { if(userLoc) map.flyTo(userLoc, 17); }
+
+    stations.forEach(s => {
+        L.circleMarker([s.lat, s.lng], {
+            radius: 10, fillColor: '#4CAF50', color: '#fff', weight: 2, fillOpacity: 1
+        }).addTo(map).on('click', () => {
+            document.getElementById('panel').style.display = 'block';
+            document.getElementById('st-name').innerText = s.n;
+            fetchArrivals(s.id);
+        });
+    });
+
+    async function fetchArrivals(id) {
+        const list = document.getElementById('arrivals-list');
+        list.innerHTML = `<div style="color: #888;">Se încarcă date live...</div>`;
+        
+        try {
+            const res = await fetch(`https://api.tranzy.ai/v1/opendata/arrivals/${id}`, {
+                headers: {
+                    'X-Agency-Id': AGENCY_ID,
+                    'X-App-Key': API_KEY
+                }
+            });
+            const data = await res.json();
+            
+            if(!data || data.length === 0) {
+                list.innerHTML = "Nu sunt sosiri programate.";
+            } else {
+                list.innerHTML = data.map(b => `
+                    <div class="bus">
+                        <span class="line">${b.routeShortName}</span>
+                        <span class="time">${Math.round(b.arrivalMinutes)} min</span>
+                    </div>
+                `).join('');
+            }
+        } catch (e) {
+            list.innerHTML = `<div style="color: #ff6b6b;">Eroare conectare server.</div>`;
+        }
+    }
+</script>
+</body>
+</html>

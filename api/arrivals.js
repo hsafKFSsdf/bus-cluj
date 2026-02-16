@@ -1,44 +1,35 @@
 export default async function handler(req, res) {
-    // 1. Luăm ID-ul stației din cererea făcută de index.html
-    const { id } = req.query;
-
-    // Dacă nu avem ID, dăm o eroare rapidă
-    if (!id) {
-        return res.status(400).json({ error: "Lipsește ID-ul stației" });
-    }
-
-    // 2. Configurăm URL-ul oficial Tranzy OpenData
-    const url = `https://api.tranzy.ai/v1/opendata/arrivals/${id}`;
-
+    const { id } = req.query; // ID-ul stației (ex: 148 pentru Sora)
+    
     try {
-        // 3. Facem cererea către serverul lor
-        const response = await fetch(url, {
-            method: 'GET',
+        // Accesăm site-ul mobil oficial al CTP Cluj pentru stația respectivă
+        const response = await fetch(`https://m-ctpcj.alonia.ro/index.php?page=statii&sm=3&st_id=${id}`, {
             headers: {
-                'X-Agency-Id': '1', // ID pentru CTP Cluj
-                'X-App-Key': 'yyAwUKMbMg7GFnXqDqQxfGEATuRpXGrsywdhaHZO',
-                'Accept': 'application/json'
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1'
             }
         });
 
-        // 4. Verificăm dacă serverul lor a răspuns cu succes
-        if (!response.ok) {
-            // Dacă primim 404 sau 502, trimitem eroarea mai departe către aplicație
-            const errorData = await response.text();
-            console.error("Eroare Tranzy:", errorData);
-            return res.status(response.status).json({ 
-                error: "Serverul Tranzy este indisponibil", 
-                status: response.status 
+        const html = await response.text();
+
+        // Căutăm liniile de autobuz și minutele folosind Regex (căutare în text)
+        // Formatul lor în HTML este ceva de genul: <td>24B</td> ... <td>5 min</td>
+        const busRegex = /<td class="linie_nr">(.+?)<\/td>[\s\S]*?<td class="linie_timp">(.+?)<\/td>/g;
+        let match;
+        const arrivals = [];
+
+        while ((match = busRegex.exec(html)) !== null) {
+            arrivals.push({
+                routeShortName: match[1].trim(),
+                arrivalMinutes: parseInt(match[2]) || 0,
+                isScraped: true
             });
         }
 
-        // 5. Trimitem datele primite înapoi către index.html
-        const data = await response.json();
-        return res.status(200).json(data);
+        // Dacă nu am găsit nimic, trimitem o listă goală
+        res.status(200).json(arrivals);
 
     } catch (error) {
-        // 6. Gestionăm situația în care serverul e picat complet (Offline)
-        console.error("Fetch error:", error);
-        return res.status(502).json({ error: "Gateway Error - Serverul nu răspunde" });
+        console.error("Scraping error:", error);
+        res.status(500).json({ error: "Nu am putut citi datele de pe site-ul CTP" });
     }
 }

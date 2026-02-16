@@ -3,84 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CJ Bus Live FIX</title>
+    <title>CJ-FL Bus Live Official</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --bg: #1a1a1a; --accent: #4ade80; }
         body { margin: 0; font-family: sans-serif; background: #000; color: white; overflow: hidden; }
         #map { height: 100vh; width: 100vw; }
-        .controls { position: fixed; right: 15px; bottom: 30px; display: flex; flex-direction: column; gap: 10px; z-index: 999; }
-        .btn { background: #2d2d2d; color: white; border: 1px solid #444; width: 55px; height: 55px; border-radius: 50%; font-size: 24px; }
-        #panel { position: fixed; bottom: 0; left: 0; right: 0; background: #1e1e1e; padding: 20px; border-radius: 25px 25px 0 0; display: none; z-index: 1000; border-top: 3px solid var(--accent); }
-        .bus { display: flex; justify-content: space-between; padding: 15px 0; border-bottom: 1px solid #333; align-items: center; }
-        .line { background: #d32f2f; color: white; padding: 5px 10px; border-radius: 8px; font-weight: bold; font-size: 18px; }
-        .time { color: var(--accent); font-weight: 800; font-size: 22px; }
+        #status { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); padding: 5px 15px; border-radius: 20px; font-size: 12px; z-index: 9999; border: 1px solid var(--accent); }
+        #panel { position: fixed; bottom: 0; left: 0; right: 0; background: #1e1e1e; padding: 20px; border-radius: 25px 25px 0 0; display: none; z-index: 1000; border-top: 3px solid var(--accent); max-height: 45vh; overflow-y: auto; }
+        .bus { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #333; }
+        .line { background: #d32f2f; color: white; padding: 4px 8px; border-radius: 5px; font-weight: bold; }
+        .time { color: var(--accent); font-weight: bold; font-size: 20px; }
+        .btn-ui { position: fixed; right: 15px; background: #2d2d2d; color: white; border: 1px solid #444; width: 50px; height: 50px; border-radius: 50%; z-index: 999; font-size: 20px; }
     </style>
 </head>
 <body>
 
-<div class="controls">
-    <button class="btn" onclick="location.reload()">🔄</button>
-    <button class="btn" onclick="recenter()">🎯</button>
-</div>
+<div id="status">Se încarcă stațiile oficiale...</div>
+
+<button class="btn-ui" style="bottom: 80px;" onclick="location.reload()">🔄</button>
+<button class="btn-ui" style="bottom: 20px;" onclick="recenter()">🎯</button>
 
 <div id="map"></div>
 
 <div id="panel">
     <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 id="st-name" style="margin:0">Stație</h3>
-        <button onclick="document.getElementById('panel').style.display='none'" style="background:none; border:none; color:#888; font-size:40px;">&times;</button>
+        <h3 id="st-name" style="margin:0; font-size: 18px;">Stație</h3>
+        <button onclick="document.getElementById('panel').style.display='none'" style="background:none; border:none; color:#888; font-size:35px;">&times;</button>
     </div>
-    <div id="arrivals-list"></div>
+    <div id="arrivals-list" style="margin-top:15px;"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     const API_KEY = 'yyAwUKMbMg7GFnXqDqQxfGEATuRpXGrsywdhaHZO';
+    const PROXY = "https://api.allorigins.win/get?url=";
     
-    // STAȚII CU ID-URI NOI (VERIFICATE)
-    const stations = [
-        {id: "148", n: "Sora", lat: 46.7719, lng: 23.5894},
-        {id: "143", n: "Memorandumului Nord", lat: 46.7695, lng: 23.5855},
-        {id: "153", n: "Central", lat: 46.7735, lng: 23.5898},
-        {id: "442", n: "Iulius Mall", lat: 46.7725, lng: 23.6262},
-        {id: "114", n: "Minerva", lat: 46.7591, lng: 23.5511}
-    ];
-
     const map = L.map('map', { zoomControl: false }).setView([46.7712, 23.5923], 14);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
+    let userLoc;
     const meIcon = L.circle([0,0], {radius: 8, color: '#fff', fillColor: '#4285F4', fillOpacity: 1}).addTo(map);
-    map.locate({watch: true, enableHighAccuracy: true});
+    map.locate({watch: true});
     map.on('locationfound', e => { userLoc = e.latlng; meIcon.setLatLng(e.latlng); });
     function recenter() { if(userLoc) map.flyTo(userLoc, 17); }
 
-    stations.forEach(s => {
-        L.circleMarker([s.lat, s.lng], {
-            radius: 10, fillColor: '#4CAF50', color: '#fff', weight: 2, fillOpacity: 1
-        }).addTo(map).on('click', () => {
-            document.getElementById('panel').style.display = 'block';
-            document.getElementById('st-name').innerText = s.n;
-            fetchArrivals(s.id);
-        });
-    });
+    // Încărcăm TOATE stațiile de la Tranzy ca să avem ID-urile lor corecte
+    async function loadStops() {
+        const url = encodeURIComponent("https://api.tranzy.ai/v1/opendata/stops");
+        try {
+            const res = await fetch(`${PROXY}${url}`);
+            const json = await res.json();
+            const stops = JSON.parse(json.contents);
+            
+            stops.forEach(s => {
+                // Punem marker doar pentru stațiile din zona Cluj-Florești
+                if(s.stop_lat > 46.70 && s.stop_lat < 46.85) {
+                    L.circleMarker([s.stop_lat, s.stop_lon], {
+                        radius: 6, fillColor: '#4CAF50', color: '#fff', weight: 1, fillOpacity: 0.8
+                    }).addTo(map).on('click', () => {
+                        showPanel(s.stop_id, s.stop_name);
+                    });
+                }
+            });
+            document.getElementById('status').innerText = "✅ Stații încărcate (Apasă pe un punct)";
+            setTimeout(() => document.getElementById('status').style.display = 'none', 3000);
+        } catch (e) {
+            document.getElementById('status').innerText = "❌ Eroare la încărcare stații";
+        }
+    }
+
+    function showPanel(id, name) {
+        document.getElementById('panel').style.display = 'block';
+        document.getElementById('st-name').innerText = name;
+        fetchArrivals(id);
+    }
 
     async function fetchArrivals(id) {
         const list = document.getElementById('arrivals-list');
-        list.innerHTML = "Se încarcă...";
+        list.innerHTML = "Se caută autobuze...";
         
+        const url = encodeURIComponent(`https://api.tranzy.ai/v1/opendata/arrivals/${id}`);
         try {
-            // URL-ul oficial Tranzy OpenData
-            const res = await fetch(`https://api.tranzy.ai/v1/opendata/arrivals/${id}`, {
-                headers: { 'X-Agency-Id': '1', 'X-App-Key': API_KEY }
-            });
-
-            if (!res.ok) throw new Error("Cod: " + res.status);
-
-            const data = await res.json();
+            const res = await fetch(`${PROXY}${url}`);
+            const json = await res.json();
+            const data = JSON.parse(json.contents);
             
             if(!data || data.length === 0) {
-                list.innerHTML = "Nu sunt autobuze în următoarele 30 min.";
+                list.innerHTML = "Nicio cursă live în următoarele 30 min.";
             } else {
                 list.innerHTML = data.map(b => `
                     <div class="bus">
@@ -90,9 +100,11 @@
                 `).join('');
             }
         } catch (e) {
-            list.innerHTML = "Eroare: " + e.message;
+            list.innerHTML = "Eroare la preluarea timpilor.";
         }
     }
+
+    loadStops();
 </script>
 </body>
 </html>

@@ -99,24 +99,40 @@
     map.on('locationfound', (e) => userMarker.setLatLng(e.latlng));
 
     // 3. Încărcare automată a stațiilor
-    async function loadStations() {
-        try {
-            const res = await fetch('/api/stops');
-            if (!res.ok) throw new Error();
-            const stops = await res.json();
+  async function loadStations() {
+        // 1. O listă scurtă de rezervă (ca să nu fie harta goală niciodată)
+        const backupStations = [
+            {stopId: "148", stopName: "Sora", stopLat: 46.7719, stopLon: 23.5894},
+            {stopId: "143", stopName: "Memorandumului", stopLat: 46.7695, stopLon: 23.5855},
+            {stopId: "512", stopName: "Florești Primărie", stopLat: 46.7454, stopLon: 23.4832},
+            {stopId: "481", stopName: "Vivo (Polus)", stopLat: 46.7512, stopLon: 23.5273}
+        ];
 
-            stops.forEach(s => {
-                L.circleMarker([s.stopLat, s.stopLon], {
-                    radius: 6, fillColor: '#4CAF50', color: '#fff', weight: 1, fillOpacity: 0.9
-                })
-                .addTo(map)
-                .on('click', () => fetchArrivals(s));
-            });
+        // Afișăm stațiile de rezervă imediat
+        drawStops(backupStations);
+
+        try {
+            // 2. Încercăm totuși să le luăm pe TOATE de pe server
+            const res = await fetch('/api/stops');
+            if (res.ok) {
+                const allStops = await res.json();
+                map.eachLayer((layer) => { if (layer instanceof L.CircleMarker && layer !== userMarker) map.removeLayer(layer); });
+                drawStops(allStops);
+            }
         } catch (err) {
-            console.error("Nu s-au putut încărca stațiile. Serverul e probabil offline.");
+            console.log("Rămânem pe stațiile de rezervă, serverul e offline.");
         }
     }
 
+    function drawStops(stopsList) {
+        stopsList.forEach(s => {
+            L.circleMarker([s.stopLat, s.stopLon], {
+                radius: 6, fillColor: '#4CAF50', color: '#fff', weight: 1, fillOpacity: 0.9
+            })
+            .addTo(map)
+            .on('click', () => fetchArrivals(s));
+        });
+    }
     // 4. Preluare Sosiri Live
     async function fetchArrivals(s) {
         const panel = document.getElementById('arrivals-panel');
@@ -168,5 +184,6 @@
 </script>
 </body>
 </html>
+
 
 

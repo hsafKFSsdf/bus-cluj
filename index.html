@@ -1,114 +1,95 @@
 <!DOCTYPE html>
-<html lang="ro">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bus Live Cluj-Florești</title>
-    
+    <title>Cluj Bus Live</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <style>
-        body { margin: 0; padding: 0; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { margin: 0; background: #111; font-family: sans-serif; color: white; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; }
         
-        #map { height: 100vh; width: 100vw; background: #1a1a1a; }
-
-        /* Stil pentru ferestrele pop-up (Google Maps link) */
-        .leaflet-popup-content-wrapper {
-            background: #222;
-            color: #fff;
-            border-radius: 12px;
-            padding: 5px;
+        /* Panoul de sosiri */
+        #arrivals-panel { 
+            position: fixed; bottom: 0; left: 0; right: 0; 
+            background: #1a1a1a; padding: 20px; 
+            border-radius: 20px 20px 0 0; 
+            transform: translateY(100%); transition: 0.3s; 
+            z-index: 1000; border-top: 4px solid #4CAF50;
+            max-height: 60vh; overflow-y: auto;
         }
-        .leaflet-popup-tip { background: #222; }
+        #arrivals-panel.active { transform: translateY(0); }
 
-        .btn-go {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            width: 100%;
-            margin-top: 10px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
+        .bus-item { 
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 0; border-bottom: 1px solid #333;
         }
-
-        .station-title {
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 5px;
-            display: block;
-        }
+        .bus-number { background: #d32f2f; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 18px; }
+        .bus-time { color: #4CAF50; font-weight: bold; font-size: 20px; }
+        .close-btn { float: right; font-size: 25px; cursor: pointer; color: #888; }
     </style>
 </head>
 <body>
 
-    <div id="map"></div>
+<div id="map"></div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<div id="arrivals-panel">
+    <span class="close-btn" onclick="closePanel()">&times;</span>
+    <h2 id="station-name" style="margin-top:0; color:#4CAF50;">Stație</h2>
+    <div id="list">Selectează o stație...</div>
+</div>
 
-    <script>
-        // 1. Lista stațiilor (am adăugat câteva importante pentru tine)
-        const stations = [
-            {n: "Sora (Spre Florești)", lat: 46.77192, lng: 23.58944},
-            {n: "Memorandumului Sud", lat: 46.76911, lng: 23.58512},
-            {n: "Florești Primărie", lat: 46.74542, lng: 23.48321},
-            {n: "Oncos Florești", lat: 46.74831, lng: 23.50114},
-            {n: "Iulius Mall Sud", lat: 46.77255, lng: 23.62621},
-            {n: "Minerva (Mănăștur)", lat: 46.75912, lng: 23.55113},
-            {n: "Polus Center", lat: 46.75123, lng: 23.52734}
-        ];
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const map = L.map('map', { zoomControl: false }).setView([46.77, 23.58], 13);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        // 2. Inițializare Hartă pe Satelit
-        const map = L.map('map', { 
-            zoomControl: false,
-            attributionControl: false 
-        }).setView([46.765, 23.550], 13);
+    const stations = [
+        {id: "148", n: "Sora", lat: 46.7719, lng: 23.5894},
+        {id: "143", n: "Memorandumului", lat: 46.7695, lng: 23.5855},
+        {id: "512", n: "Florești Primărie", lat: 46.7454, lng: 23.4832}
+    ];
 
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+    stations.forEach(s => {
+        L.circleMarker([s.lat, s.lng], { radius: 12, fillColor: '#4CAF50', color: '#fff', weight: 3, fillOpacity: 1 })
+        .addTo(map).on('click', () => showArrivals(s));
+    });
 
-        // 3. Afișare locația TA (Punctul Albastru)
-        map.locate({watch: true, enableHighAccuracy: true});
-        const userMarker = L.circleMarker([0,0], {
-            radius: 7,
-            color: '#fff',
-            fillColor: '#007AFF',
-            fillOpacity: 1,
-            weight: 2
-        }).addTo(map);
+    async function showArrivals(station) {
+        const panel = document.getElementById('arrivals-panel');
+        const list = document.getElementById('list');
+        document.getElementById('station-name').innerText = station.n;
+        
+        panel.classList.add('active');
+        list.innerHTML = "Se încarcă date live...";
 
-        map.on('locationfound', (e) => {
-            userMarker.setLatLng(e.latlng);
-        });
+        try {
+            const res = await fetch(`/api/arrivals?id=${station.id}`);
+            const data = await res.json();
 
-        // 4. Adăugare Stații pe Hartă
-        stations.forEach(s => {
-            const marker = L.circleMarker([s.lat, s.lng], {
-                radius: 11,
-                fillColor: '#4CAF50',
-                color: '#fff',
-                weight: 3,
-                fillOpacity: 1
-            }).addTo(map);
+            if (data.error || !Array.isArray(data)) {
+                list.innerHTML = "<b style='color:orange'>Serverul Tranzy este momentan picat (502). Reîncearcă în câteva minute.</b>";
+                return;
+            }
 
-            // Când apeși pe stație, apare un mic meniu
-            marker.bindPopup(`
-                <b class="station-title">${s.n}</b>
-                <div style="color: #bbb; font-size: 12px;">Vezi orele live prin Google Transit:</div>
-                <a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}" 
-                   target="_blank" class="btn-go">
-                   DESCHIDE LIVE
-                </a>
-            `);
-        });
+            if (data.length === 0) {
+                list.innerHTML = "Nu sunt autobuze programate acum.";
+                return;
+            }
 
-        // Mesaj de eroare dacă locația nu e activată
-        map.on('locationerror', () => {
-            console.log("Locația nu a putut fi accesată.");
-        });
-    </script>
+            list.innerHTML = data.map(bus => `
+                <div class="bus-item">
+                    <span class="bus-number">${bus.routeShortName}</span>
+                    <span class="bus-time">${Math.round(bus.arrivalMinutes)} min</span>
+                </div>
+            `).join('');
+
+        } catch (err) {
+            list.innerHTML = "Eroare de conexiune la serverul tău.";
+        }
+    }
+
+    function closePanel() { document.getElementById('arrivals-panel').classList.remove('active'); }
+</script>
 </body>
 </html>

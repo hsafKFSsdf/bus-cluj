@@ -1,32 +1,70 @@
 <!DOCTYPE html>
-<html>
+<html lang="ro">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cluj Bus Live</title>
+    <title>Cluj Bus Live PRO</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
-        body { margin: 0; background: #111; font-family: sans-serif; color: white; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; }
+        :root {
+            --primary: #4CAF50;
+            --bg: #0a0a0a;
+            --panel-bg: rgba(26, 26, 26, 0.95);
+        }
+
+        body { margin: 0; background: var(--bg); font-family: -apple-system, sans-serif; color: white; overflow: hidden; }
         
-        /* Panoul de sosiri */
+        #map { height: 100vh; width: 100vw; }
+
+        /* Panel Sosiri */
         #arrivals-panel { 
             position: fixed; bottom: 0; left: 0; right: 0; 
-            background: #1a1a1a; padding: 20px; 
-            border-radius: 20px 20px 0 0; 
-            transform: translateY(100%); transition: 0.3s; 
-            z-index: 1000; border-top: 4px solid #4CAF50;
-            max-height: 60vh; overflow-y: auto;
+            background: var(--panel-bg); 
+            backdrop-filter: blur(10px);
+            padding: 25px; 
+            border-radius: 25px 25px 0 0; 
+            transform: translateY(100%); 
+            transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1); 
+            z-index: 1000; 
+            border-top: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 -10px 25px rgba(0,0,0,0.5);
+            max-height: 70vh;
+            overflow-y: auto;
         }
+
         #arrivals-panel.active { transform: translateY(0); }
 
+        .handle { width: 40px; height: 5px; background: #444; border-radius: 10px; margin: -10px auto 15px; }
+
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+        
+        h2 { margin: 0; font-size: 22px; color: var(--primary); }
+
+        .close-btn { background: #333; border: none; color: white; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+
+        /* Lista Bus */
         .bus-item { 
             display: flex; justify-content: space-between; align-items: center;
-            padding: 15px 0; border-bottom: 1px solid #333;
+            padding: 18px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
         }
-        .bus-number { background: #d32f2f; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 18px; }
-        .bus-time { color: #4CAF50; font-weight: bold; font-size: 20px; }
-        .close-btn { float: right; font-size: 25px; cursor: pointer; color: #888; }
+
+        .bus-info { display: flex; align-items: center; gap: 15px; }
+        
+        .bus-badge { 
+            background: #e31e24; color: white; 
+            min-width: 45px; height: 35px; 
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 8px; font-weight: 800; font-size: 18px;
+        }
+
+        .bus-time { color: var(--primary); font-weight: 700; font-size: 22px; }
+        .bus-unit { font-size: 12px; color: #888; margin-left: 4px; }
+
+        /* Status Messages */
+        .loader { text-align: center; padding: 40px; color: #888; }
+        .error-msg { color: #ff9800; text-align: center; padding: 20px; font-weight: 500; }
     </style>
 </head>
 <body>
@@ -34,62 +72,87 @@
 <div id="map"></div>
 
 <div id="arrivals-panel">
-    <span class="close-btn" onclick="closePanel()">&times;</span>
-    <h2 id="station-name" style="margin-top:0; color:#4CAF50;">Stație</h2>
-    <div id="list">Selectează o stație...</div>
+    <div class="handle"></div>
+    <div class="header">
+        <div>
+            <h2 id="st-name">Stație</h2>
+            <div id="st-id" style="font-size: 12px; color: #666;">ID Stație</div>
+        </div>
+        <button class="close-btn" onclick="togglePanel(false)">&times;</button>
+    </div>
+    <div id="list-container"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map', { zoomControl: false }).setView([46.77, 23.58], 13);
+    // 1. Configurare Hartă
+    const map = L.map('map', { zoomControl: false }).setView([46.76, 23.55], 13);
+    
+    // Satelit Dark de la ArcGIS
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
+    // 2. Stații
     const stations = [
         {id: "148", n: "Sora", lat: 46.7719, lng: 23.5894},
         {id: "143", n: "Memorandumului", lat: 46.7695, lng: 23.5855},
-        {id: "512", n: "Florești Primărie", lat: 46.7454, lng: 23.4832}
+        {id: "512", n: "Florești Primărie", lat: 46.7454, lng: 23.4832},
+        {id: "481", n: "Polus Center", lat: 46.7512, lng: 23.5273}
     ];
 
+    // 3. Adăugare Marcaje
     stations.forEach(s => {
-        L.circleMarker([s.lat, s.lng], { radius: 12, fillColor: '#4CAF50', color: '#fff', weight: 3, fillOpacity: 1 })
-        .addTo(map).on('click', () => showArrivals(s));
+        L.circleMarker([s.lat, s.lng], {
+            radius: 12, fillColor: '#4CAF50', color: '#fff', weight: 3, fillOpacity: 1
+        }).addTo(map).on('click', () => fetchArrivals(s));
     });
 
-    async function showArrivals(station) {
+    // 4. Funcția de Fetch (folosește folderul /api)
+    async function fetchArrivals(s) {
         const panel = document.getElementById('arrivals-panel');
-        const list = document.getElementById('list');
-        document.getElementById('station-name').innerText = station.n;
+        const list = document.getElementById('list-container');
+        
+        document.getElementById('st-name').innerText = s.n;
+        document.getElementById('st-id').innerText = `ID: ${s.id}`;
         
         panel.classList.add('active');
-        list.innerHTML = "Se încarcă date live...";
+        list.innerHTML = '<div class="loader">Se caută autobuze live...</div>';
 
         try {
-            const res = await fetch(`/api/arrivals?id=${station.id}`);
+            const res = await fetch(`/api/arrivals?id=${s.id}`);
             const data = await res.json();
 
-            if (data.error || !Array.isArray(data)) {
-                list.innerHTML = "<b style='color:orange'>Serverul Tranzy este momentan picat (502). Reîncearcă în câteva minute.</b>";
+            // Gestionare Erori (inclusiv 502 de la Tranzy)
+            if (!res.ok || data.error) {
+                list.innerHTML = `<div class="error-msg">⚠️ Serverul Tranzy (OpenData) nu răspunde acum. Probabil este în mentenanță de noapte. Reîncearcă după ora 05:00.</div>`;
                 return;
             }
 
-            if (data.length === 0) {
-                list.innerHTML = "Nu sunt autobuze programate acum.";
+            if (!Array.isArray(data) || data.length === 0) {
+                list.innerHTML = '<div class="loader">Nu s-au găsit autobuze active pentru această stație în următoarele 30 de minute.</div>';
                 return;
             }
 
+            // Generare listă sosiri
             list.innerHTML = data.map(bus => `
                 <div class="bus-item">
-                    <span class="bus-number">${bus.routeShortName}</span>
-                    <span class="bus-time">${Math.round(bus.arrivalMinutes)} min</span>
+                    <div class="bus-info">
+                        <div class="bus-badge">${bus.routeShortName}</div>
+                        <div style="font-size: 14px;">Spre capăt de linie</div>
+                    </div>
+                    <div class="bus-time">
+                        ${Math.round(bus.arrivalMinutes)}<span class="bus-unit">min</span>
+                    </div>
                 </div>
             `).join('');
 
         } catch (err) {
-            list.innerHTML = "Eroare de conexiune la serverul tău.";
+            list.innerHTML = '<div class="error-msg">Eroare de conexiune. Verifică dacă folderul /api este configurat corect pe Vercel.</div>';
         }
     }
 
-    function closePanel() { document.getElementById('arrivals-panel').classList.remove('active'); }
+    function togglePanel(show) {
+        document.getElementById('arrivals-panel').classList.toggle('active', show);
+    }
 </script>
 </body>
 </html>

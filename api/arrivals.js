@@ -1,34 +1,43 @@
 export default async function handler(req, res) {
-    const { id } = req.query; // ID-ul stației (ex: 148 pentru Sora)
-    
+    const { id } = req.query;
+
+    if (!id) {
+        return res.status(400).json({ error: "Lipsește ID-ul stației" });
+    }
+
+    // URL-ul oficial Tranzy
+    const url = `https://api.tranzy.ai/v1/opendata/arrivals/${id}`;
+
     try {
-        // Accesăm site-ul mobil oficial al CTP Cluj pentru stația respectivă
-        const response = await fetch(`https://m-ctpcj.alonia.ro/index.php?page=statii&sm=3&st_id=${id}`, {
+        const response = await fetch(url, {
+            method: 'GET',
             headers: {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1'
+                'X-Agency-Id': '1',
+                'X-App-Key': 'yyAwUKMbMg7GFnXqDqQxfGEATuRpXGrsywdhaHZO',
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache'
             }
         });
 
-        const html = await response.text();
-
-        // Căutăm liniile de autobuz și minutele folosind Regex (căutare în text)
-        // Formatul lor în HTML este ceva de genul: <td>24B</td> ... <td>5 min</td>
-        const busRegex = /<td class="linie_nr">(.+?)<\/td>[\s\S]*?<td class="linie_timp">(.+?)<\/td>/g;
-        let match;
-        const arrivals = [];
-
-        while ((match = busRegex.exec(html)) !== null) {
-            arrivals.push({
-                routeShortName: match[1].trim(),
-                arrivalMinutes: parseInt(match[2]) || 0,
-                isScraped: true
+        // Verificăm dacă serverul a răspuns cu succes
+        if (!response.ok) {
+            // Dacă e 502, 404 sau 403, trimitem un mesaj clar interfeței
+            return res.status(response.status).json({ 
+                error: "Sursa de date indisponibilă", 
+                statusCode: response.status 
             });
         }
 
-        // Dacă nu am găsit nimic, trimitem o listă goală
-        res.status(200).json(arrivals);
+        const data = await response.json();
+        
+        // Trimitem datele către index.html
+        res.status(200).json(data);
 
     } catch (error) {
+        // Eroare de rețea sau server picat complet
+        res.status(502).json({ error: "Eroare de conexiune la serverul Tranzy" });
+    }
+}
         console.error("Scraping error:", error);
         res.status(500).json({ error: "Nu am putut citi datele de pe site-ul CTP" });
     }

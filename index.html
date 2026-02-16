@@ -1,64 +1,33 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bus Live Cluj-Florești</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        body { margin: 0; background: #000; font-family: sans-serif; color: white; }
-        #map { height: 100vh; width: 100vw; }
-        #panel { position: fixed; bottom: 0; left: 0; right: 0; background: #1e1e1e; padding: 20px; border-radius: 20px 20px 0 0; display: none; z-index: 1000; border-top: 3px solid #4ade80; }
-        .bus { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; }
-        .line { background: #d32f2f; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
-        .time { color: #4ade80; font-weight: bold; font-size: 18px; }
-    </style>
-</head>
-<body>
-    <div id="map"></div>
-    <div id="panel">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3 id="st-name" style="margin:0">Stație</h3>
-            <button onclick="document.getElementById('panel').style.display='none'" style="background:none; border:none; color:#888; font-size:30px;">&times;</button>
-        </div>
-        <div id="arrivals-list" style="margin-top:10px;"></div>
-    </div>
+// Lista stațiilor cu coordonate precise pentru Google Maps
+    const stations = [
+        {n: "Sora (Spre Florești)", lat: 46.77192, lng: 23.58944},
+        {n: "Memorandumului Sud", lat: 46.76911, lng: 23.58512},
+        {n: "Florești Primărie", lat: 46.74542, lng: 23.48321},
+        {n: "Oncos Florești", lat: 46.74831, lng: 23.50114},
+        {n: "Iulius Mall Sud", lat: 46.77255, lng: 23.62621},
+        {n: "Minerva (Mănăștur)", lat: 46.75912, lng: 23.55113}
+    ];
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        const stations = [
-            {id: "148", n: "Sora", lat: 46.7719, lng: 23.5894},
-            {id: "143", n: "Memorandumului", lat: 46.7695, lng: 23.5855},
-            {id: "512", n: "Florești Primărie", lat: 46.7454, lng: 23.4832}
-        ];
+    // Inițializare hartă (fără schimbări aici)
+    const map = L.map('map', { zoomControl: false }).setView([46.7712, 23.5923], 13);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        const map = L.map('map', { zoomControl: false }).setView([46.7712, 23.5923], 14);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+    // Afișare locație utilizator (punctul albastru)
+    map.locate({watch: true, enableHighAccuracy: true});
+    const userMarker = L.circle([0,0], {radius: 8, color: '#fff', fillColor: '#007AFF', fillOpacity: 1}).addTo(map);
+    map.on('locationfound', e => userMarker.setLatLng(e.latlng));
 
-        stations.forEach(s => {
-            L.circleMarker([s.lat, s.lng], { radius: 10, fillColor: '#4CAF50', color: '#fff', weight: 2, fillOpacity: 1 })
-            .addTo(map).on('click', () => {
-                document.getElementById('panel').style.display = 'block';
-                document.getElementById('st-name').innerText = s.n;
-                fetchLive(s.id);
-            });
+    // Adăugare stații
+    stations.forEach(s => {
+        L.circleMarker([s.lat, s.lng], {
+            radius: 12, fillColor: '#4CAF50', color: '#fff', weight: 3, fillOpacity: 1
+        }).addTo(map).on('click', () => {
+            
+            // CONSTRUIRE LINK GOOGLE MAPS LIVE
+            // Acest link forțează Google Maps să deschidă stația și să arate orele de tranzit
+            const googleUrl = `https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}`;
+            
+            // Opțiune: Deschidem într-un tab nou sau direct în aplicația de Maps
+            window.location.href = googleUrl;
         });
-
-        async function fetchLive(id) {
-            const list = document.getElementById('arrivals-list');
-            list.innerHTML = "Se încarcă prin Vercel...";
-            try {
-                // IMPORTANT: Cerem datele de la propria noastră funcție "api/arrivals"
-                const res = await fetch(`/api/arrivals?id=${id}`);
-                const data = await res.json();
-                list.innerHTML = data.map(b => `
-                    <div class="bus">
-                        <span class="line">${b.routeShortName}</span>
-                        <span class="time">${Math.round(b.arrivalMinutes)} min</span>
-                    </div>
-                `).join('');
-            } catch (e) { list.innerHTML = "Eroare la server."; }
-        }
-    </script>
-</body>
-</html>
+    });

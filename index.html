@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>bus-cluj-v18</title>
+    <title>bus-cluj-v18-cloudflare</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -85,7 +85,9 @@
 <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 
 <script>
-    const API_KEY = 'yyAwUKMbMg7GFnXqDqQxfGEATuRpXGrsywdhaHZO';
+    // MODIFICĂ AICI: Pune link-ul tau de la Cloudflare
+    const CLOUDFLARE_PROXY = "https://tranzy-proxy.elias-samuel-rus.workers.dev/";
+    
     let currentStopId = null;
 
     const maps = [
@@ -146,16 +148,7 @@
         setTimeout(() => { bar.style.opacity = "0"; }, duration);
     }
 
-    // --- LOGICA TRANZY (STABILĂ) ---
-
-    async function callTranzy(url) {
-        // Folosim AllOrigins pentru a prelua datele sub formă de text și a le parsa manual
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-        const response = await fetch(proxyUrl);
-        const data = await response.json();
-        // Datele vin în data.contents ca string JSON
-        return JSON.parse(data.contents);
-    }
+    // --- LOGICA TRANZY PRIN CLOUDFLARE WORKER ---
 
     async function openPanel(name, latlng) {
         document.getElementById('p-name').innerText = name;
@@ -163,25 +156,26 @@
         document.getElementById('controls').classList.add('up');
         
         const list = document.getElementById('bus-list');
-        list.innerHTML = `<div style="color:#444; font-size:10px;">SINCRONIZARE...</div>`;
+        list.innerHTML = `<div style="color:#444; font-size:10px;">CONECTARE TUNEL...</div>`;
 
         try {
             const radius = 0.001; 
-            // URL-ul direct conține cheia ca parametru pentru a fi acceptat de proxy
-            const url = `https://api.tranzy.ai/public/v1/opendata/stops?lat=${latlng.lat}&lon=${latlng.lng}&dist=${radius}&X-Agency-Id=cluj&X-API-KEY=${API_KEY}`;
+            const targetUrl = `https://api.tranzy.ai/public/v1/opendata/stops?lat=${latlng.lat}&lon=${latlng.lng}&dist=${radius}`;
             
-            const stopData = await callTranzy(url);
+            // Apelăm worker-ul care face cererea în locul nostru
+            const res = await fetch(CLOUDFLARE_PROXY + encodeURIComponent(targetUrl));
+            const stopData = await res.json();
             
             if (stopData && stopData.length > 0) {
                 currentStopId = stopData[0].id;
                 fetchRealTimes(currentStopId);
             } else {
-                list.innerHTML = `<div style="color:#666; font-size:12px;">NU EXISTĂ DATE RT PENTRU ACEASTĂ LOCAȚIE.</div>`;
+                list.innerHTML = `<div style="color:#666; font-size:12px;">STAȚIE FĂRĂ DATE ÎN BAZA TRANZY.</div>`;
             }
         } catch (e) {
-            console.error(e);
-            showNotify("EROARE SERVER");
-            list.innerHTML = `<div style="color:#f44; font-size:10px;">SERVERUL TRANZY NU RĂSPUNDE MOMENTAN.</div>`;
+            console.error("Worker Error:", e);
+            showNotify("EROARE TUNEL");
+            list.innerHTML = `<div style="color:#f44; font-size:10px;">VERIFICĂ CONFIGURAREA WORKER-ULUI.</div>`;
         }
     }
 
@@ -191,11 +185,12 @@
         list.style.opacity = "0.3";
         
         try {
-            const url = `https://api.tranzy.ai/public/v1/opendata/stops/${stopId}/arrivals?X-Agency-Id=cluj&X-API-KEY=${API_KEY}`;
-            const arrivals = await callTranzy(url);
+            const targetUrl = `https://api.tranzy.ai/public/v1/opendata/stops/${stopId}/arrivals`;
+            const res = await fetch(CLOUDFLARE_PROXY + encodeURIComponent(targetUrl));
+            const arrivals = await res.json();
 
             if (!arrivals || arrivals.length === 0) {
-                list.innerHTML = `<div style="color:#444; font-size:12px; padding:20px 0;">FĂRĂ SOSIRI PROGRAMATE.</div>`;
+                list.innerHTML = `<div style="color:#444; font-size:12px; padding:20px 0;">FĂRĂ SOSIRI ÎN URMĂTOARELE 60 MIN.</div>`;
             } else {
                 list.innerHTML = arrivals.map(bus => `
                     <div class="bus-item">

@@ -3,180 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BusClujLive v20</title>
+    <title>Bus Cluj v21</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
     
     <style>
         :root { --accent: #00ff88; }
-        body, html { 
-            margin: 0; padding: 0; background: #000; 
-            font-family: -apple-system, sans-serif; overflow: hidden; color: white;
-        }
-        #map { height: 100vh; width: 100vw; background: #000; z-index: 1; }
+        body, html { margin: 0; padding: 0; background: #000; font-family: sans-serif; overflow: hidden; color: white; }
+        #map { height: 100vh; width: 100vw; background: #000; }
 
-        #top-bar {
-            position: fixed; top: 0; left: 0; right: 0;
-            background: rgba(0,0,0,0.8); height: 25px;
-            display: flex; align-items: center; justify-content: center;
-            z-index: 4000; border-bottom: 1px solid #111;
-            opacity: 0; transition: opacity 0.3s; pointer-events: none;
-        }
-        #status-text { font-size: 10px; font-weight: 900; letter-spacing: 1px; color: #eee; }
-
-        .ui-group {
-            position: fixed; bottom: 30px; right: 20px;
-            display: flex; flex-direction: column; gap: 12px; z-index: 1000;
-        }
+        .ui-group { position: fixed; bottom: 30px; right: 20px; display: flex; flex-direction: column; gap: 12px; z-index: 1000; transition: transform 0.3s; }
         .ui-group.up { transform: translateY(-32vh); }
-
-        .btn-action {
-            width: 50px; height: 50px; background: rgba(20,20,20,0.95);
-            border: 1px solid #333; color: white; display: flex; 
-            align-items: center; justify-content: center; cursor: pointer;
-            border-radius: 4px;
-        }
-        .btn-action svg { width: 22px; fill: white; }
-        .active-lock { border-color: var(--accent); box-shadow: 0 0 15px rgba(0,255,136,0.2); }
+        .btn-action { width: 50px; height: 50px; background: #111; border: 1px solid #333; color: white; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
         #panel {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background: #0a0a0a; border-top: 1px solid #222;
-            padding: 20px; transform: translateY(101%); transition: transform 0.3s ease;
-            z-index: 2000; height: 32vh; overflow-y: auto;
+            position: fixed; bottom: 0; left: 0; right: 0; background: #0a0a0a; border-top: 1px solid #222;
+            padding: 20px; transform: translateY(100%); transition: transform 0.3s; z-index: 2000; height: 32vh; overflow-y: auto;
         }
         #panel.open { transform: translateY(0); }
-        .st-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .st-name { font-size: 15px; font-weight: 800; color: #fff; }
-        .refresh-btn { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); padding: 4px 8px; border-radius: 2px; }
-        .close-icon { font-size: 30px; color: #444; cursor: pointer; }
+        .st-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
         .bus-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #1a1a1a; }
         .line { color: var(--accent); font-weight: 800; font-size: 18px; }
-        .eta { color: #ccc; font-size: 14px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div id="top-bar"><span id="status-text">NOTIFICARE</span></div>
 <div id="map"></div>
 
 <div class="ui-group" id="controls">
-    <button class="btn-action active-lock" id="north-btn">
-        <svg id="compass-svg" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
-    </button>
-    <button class="btn-action" onclick="cycleMaps()" style="font-size: 10px; font-weight: bold;">MAP</button>
-    <button class="btn-action" onclick="locateMe()" style="font-size: 10px; font-weight: bold;">GPS</button>
+    <button class="btn-action" onclick="cycleMaps()">MAP</button>
+    <button class="btn-action" onclick="locateMe()">GPS</button>
 </div>
 
 <div id="panel">
     <div class="st-header">
         <div>
-            <div class="st-name" id="p-name">STAȚIE</div>
-            <div class="refresh-btn" id="reloader-btn">REÎNCARCĂ</div>
+            <div id="p-name" style="font-weight: 800;">STAȚIE</div>
+            <div id="reloader-btn" style="color: var(--accent); font-size: 12px; margin-top: 5px; cursor: pointer;">REÎNCARCĂ</div>
         </div>
-        <div class="close-icon" onclick="closePanel()">×</div>
+        <div onclick="closePanel()" style="font-size: 30px; cursor: pointer;">×</div>
     </div>
     <div id="bus-list"></div>
 </div>
 
 <script>
-    // Link-ul tau de Cloudflare care a dat Status 200 in Screenshot 27
     const CLOUDFLARE_PROXY = "https://tranzy-proxy.elias-samuel-rus.workers.dev/?url=";
-    
     let currentStopId = null;
+
     const maps = [
-        { name: 'Satelit', layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}') },
-        { name: 'Street', layer: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png') },
-        { name: 'Dark', layer: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png') }
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
     ];
 
     let currentIdx = 0;
-    // Initializare harta
-    const map = L.map('map', { 
-        zoomControl: false, 
-        attributionControl: false, 
-        layers: [maps[0].layer],
-        rotate: true
-    }).setView([46.77, 23.59], 14);
+    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([46.77, 23.59], 14);
+    maps[0].addTo(map);
 
-    function showNotify(text) {
-        const bar = document.getElementById('top-bar');
-        document.getElementById('status-text').innerText = text;
-        bar.style.opacity = "1";
-        setTimeout(() => { bar.style.opacity = "0"; }, 2000);
+    // FIX GPS: Permisiunile trebuie cerute după ce utilizatorul interacționează
+    function locateMe() {
+        map.locate({setView: true, maxZoom: 16, enableHighAccuracy: true});
     }
+
+    map.on('locationfound', (e) => {
+        L.circleMarker(e.latlng, {radius: 8, fillColor: '#007AFF', color: '#fff', weight: 2, fillOpacity: 1}).addTo(map);
+    });
+
+    map.on('locationerror', () => alert("Activează GPS-ul din setările telefonului/browserului."));
 
     async function fetchRealTimes(stopId) {
         if (!stopId) return;
         const list = document.getElementById('bus-list');
-        list.style.opacity = "0.4";
-        
         try {
-            const target = `https://api.tranzy.ai/public/v1/opendata/stops/${stopId}/arrivals`;
-            const res = await fetch(CLOUDFLARE_PROXY + encodeURIComponent(target));
+            const res = await fetch(CLOUDFLARE_PROXY + encodeURIComponent(`https://api.tranzy.ai/public/v1/opendata/stops/${stopId}/arrivals`));
             const arrivals = await res.json();
-
-            if (!arrivals || arrivals.length === 0) {
-                list.innerHTML = `<div style="color:#666; padding:20px 0;">FĂRĂ AUTOBUZE ÎN URMĂTOARELE 60 MIN.</div>`;
-            } else {
-                list.innerHTML = arrivals.map(bus => `
-                    <div class="bus-item">
-                        <span class="line">${bus.routeShortName}</span>
-                        <span class="eta">${Math.round(bus.arrivalIn / 60)} MIN</span>
-                    </div>
-                `).join('');
-            }
-        } catch (e) {
-            list.innerHTML = `<div style="color:#f44;">EROARE DE CONECTARE.</div>`;
-        } finally {
-            list.style.opacity = "1";
-        }
+            list.innerHTML = arrivals.length ? arrivals.map(bus => `
+                <div class="bus-item">
+                    <span class="line">${bus.routeShortName}</span>
+                    <span class="eta">${Math.round(bus.arrivalIn / 60)} MIN</span>
+                </div>
+            `).join('') : "Fără sosiri.";
+        } catch (e) { list.innerHTML = "Eroare date."; }
     }
 
     async function openPanel(name, latlng) {
         document.getElementById('p-name').innerText = name;
         document.getElementById('panel').classList.add('open');
         document.getElementById('controls').classList.add('up');
-        document.getElementById('bus-list').innerHTML = "SE ÎNCARCĂ...";
+        document.getElementById('bus-list').innerHTML = "Căutare...";
 
         try {
-            const target = `https://api.tranzy.ai/public/v1/opendata/stops?lat=${latlng.lat}&lon=${latlng.lng}&dist=0.001`;
-            const res = await fetch(CLOUDFLARE_PROXY + encodeURIComponent(target));
-            const stopData = await res.json();
-            
-            if (stopData && stopData.length > 0) {
-                currentStopId = stopData[0].id;
-                fetchRealTimes(currentStopId);
-            } else {
-                document.getElementById('bus-list').innerHTML = "STAȚIE NEÎNREGISTRATĂ ÎN TRANZY.";
-            }
-        } catch (e) {
-            document.getElementById('bus-list').innerHTML = "EROARE TUNEL.";
-        }
-    }
-
-    async function getStops() {
-        const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(`[out:json];node["highway"="bus_stop"](46.70,23.40,46.85,23.70);out body;`);
-        try {
-            const res = await fetch(url);
+            const res = await fetch(CLOUDFLARE_PROXY + encodeURIComponent(`https://api.tranzy.ai/public/v1/opendata/stops?lat=${latlng.lat}&lon=${latlng.lng}&dist=0.001`));
             const data = await res.json();
-            data.elements.forEach(s => {
-                const marker = L.circleMarker([s.lat, s.lon], { 
-                    radius: 6, fillColor: '#00ff88', color: '#fff', weight: 1, fillOpacity: 0.9 
-                }).addTo(map);
-                marker.on('click', () => openPanel(s.tags.name || "STAȚIE", {lat: s.lat, lng: s.lon}));
-            });
-            showNotify("STAȚII ÎNCĂRCATE");
-        } catch(e) { showNotify("EROARE HARTA"); }
+            if (data.length) {
+                currentStopId = data[0].id;
+                fetchRealTimes(currentStopId);
+            } else { document.getElementById('bus-list').innerHTML = "Stație negăsită."; }
+        } catch (e) { document.getElementById('bus-list').innerHTML = "Eroare conexiune."; }
     }
 
     function cycleMaps() {
-        map.removeLayer(maps[currentIdx].layer);
+        map.removeLayer(maps[currentIdx]);
         currentIdx = (currentIdx + 1) % maps.length;
-        map.addLayer(maps[currentIdx].layer);
-        showNotify(maps[currentIdx].name);
+        maps[currentIdx].addTo(map);
     }
 
     function closePanel() {
@@ -184,15 +113,16 @@
         document.getElementById('controls').classList.remove('up');
     }
 
-    function locateMe() {
-        map.locate({setView: true, maxZoom: 16});
-    }
+    // Încarcă stațiile de pe hartă
+    fetch("https://overpass-api.de/api/interpreter?data=[out:json];node['highway'='bus_stop'](46.70,23.40,46.85,23.70);out body;")
+        .then(res => res.json()).then(data => {
+            data.elements.forEach(s => {
+                L.circleMarker([s.lat, s.lon], {radius: 6, fillColor: '#00ff88', color: '#fff', weight: 1, fillOpacity: 0.9})
+                 .addTo(map).on('click', () => openPanel(s.tags.name || "Stație", {lat: s.lat, lng: s.lon}));
+            });
+        });
 
-    document.getElementById('reloader-btn').addEventListener('click', () => fetchRealTimes(currentStopId));
-    
-    // Pornire aplicatie
-    getStops();
+    document.getElementById('reloader-btn').onclick = () => fetchRealTimes(currentStopId);
 </script>
 </body>
 </html>
-

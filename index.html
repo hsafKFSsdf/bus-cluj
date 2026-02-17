@@ -146,7 +146,16 @@
         setTimeout(() => { bar.style.opacity = "0"; }, duration);
     }
 
-    // --- LOGICA TRANZY DIRECTĂ (FĂRĂ PROXY) ---
+    // --- LOGICA TRANZY (STABILĂ) ---
+
+    async function callTranzy(url) {
+        // Folosim AllOrigins pentru a prelua datele sub formă de text și a le parsa manual
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        const response = await fetch(proxyUrl);
+        const data = await response.json();
+        // Datele vin în data.contents ca string JSON
+        return JSON.parse(data.contents);
+    }
 
     async function openPanel(name, latlng) {
         document.getElementById('p-name').innerText = name;
@@ -154,31 +163,25 @@
         document.getElementById('controls').classList.add('up');
         
         const list = document.getElementById('bus-list');
-        list.innerHTML = `<div style="color:#444; font-size:10px;">IDENTIFICARE TRANZY...</div>`;
+        list.innerHTML = `<div style="color:#444; font-size:10px;">SINCRONIZARE...</div>`;
 
         try {
             const radius = 0.001; 
-            const url = `https://api.tranzy.ai/public/v1/opendata/stops?lat=${latlng.lat}&lon=${latlng.lng}&dist=${radius}`;
+            // URL-ul direct conține cheia ca parametru pentru a fi acceptat de proxy
+            const url = `https://api.tranzy.ai/public/v1/opendata/stops?lat=${latlng.lat}&lon=${latlng.lng}&dist=${radius}&X-Agency-Id=cluj&X-API-KEY=${API_KEY}`;
             
-            const findStop = await fetch(url, {
-                headers: { 
-                    'X-Agency-Id': 'cluj', 
-                    'X-API-KEY': API_KEY,
-                    'Accept': 'application/json'
-                }
-            });
-            const stopData = await findStop.json();
+            const stopData = await callTranzy(url);
             
             if (stopData && stopData.length > 0) {
                 currentStopId = stopData[0].id;
                 fetchRealTimes(currentStopId);
             } else {
-                list.innerHTML = `<div style="color:#666; font-size:12px;">STAȚIA NU ESTE ÎN BAZA RT.</div>`;
+                list.innerHTML = `<div style="color:#666; font-size:12px;">NU EXISTĂ DATE RT PENTRU ACEASTĂ LOCAȚIE.</div>`;
             }
         } catch (e) {
             console.error(e);
-            showNotify("EROARE CONEXIUNE");
-            list.innerHTML = `<div style="color:#666;">Verifică dacă whitelist-ul este activ pe Tranzy.</div>`;
+            showNotify("EROARE SERVER");
+            list.innerHTML = `<div style="color:#f44; font-size:10px;">SERVERUL TRANZY NU RĂSPUNDE MOMENTAN.</div>`;
         }
     }
 
@@ -188,15 +191,8 @@
         list.style.opacity = "0.3";
         
         try {
-            const url = `https://api.tranzy.ai/public/v1/opendata/stops/${stopId}/arrivals`;
-            const res = await fetch(url, {
-                headers: { 
-                    'X-Agency-Id': 'cluj', 
-                    'X-API-KEY': API_KEY,
-                    'Accept': 'application/json'
-                }
-            });
-            const arrivals = await res.json();
+            const url = `https://api.tranzy.ai/public/v1/opendata/stops/${stopId}/arrivals?X-Agency-Id=cluj&X-API-KEY=${API_KEY}`;
+            const arrivals = await callTranzy(url);
 
             if (!arrivals || arrivals.length === 0) {
                 list.innerHTML = `<div style="color:#444; font-size:12px; padding:20px 0;">FĂRĂ SOSIRI PROGRAMATE.</div>`;

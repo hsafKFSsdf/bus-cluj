@@ -86,6 +86,7 @@
 
 <script>
     const API_KEY = 'yyAwUKMbMg7GFnXqDqQxfGEATuRpXGrsywdhaHZO';
+    const PROXY = "https://corsproxy.io/?";
     let currentStopId = null;
 
     const maps = [
@@ -146,7 +147,7 @@
         setTimeout(() => { bar.style.opacity = "0"; }, duration);
     }
 
-    // --- LOGICA TRANZY REAL-TIME ---
+    // --- LOGICA TRANZY REAL-TIME CU PROXY ---
 
     async function openPanel(name, latlng) {
         document.getElementById('p-name').innerText = name;
@@ -158,8 +159,14 @@
 
         try {
             const radius = 0.001; 
-            const findStop = await fetch(`https://api.tranzy.ai/public/v1/opendata/stops?lat=${latlng.lat}&lon=${latlng.lng}&dist=${radius}`, {
-                headers: { 'X-Agency-Id': 'cluj', 'X-API-KEY': API_KEY }
+            const targetUrl = `https://api.tranzy.ai/public/v1/opendata/stops?lat=${latlng.lat}&lon=${latlng.lng}&dist=${radius}`;
+            
+            const findStop = await fetch(PROXY + encodeURIComponent(targetUrl), {
+                headers: { 
+                    'X-Agency-Id': 'cluj', 
+                    'X-API-KEY': API_KEY,
+                    'Accept': 'application/json'
+                }
             });
             const stopData = await findStop.json();
             
@@ -170,7 +177,7 @@
                 list.innerHTML = `<div style="color:#666; font-size:12px;">STAȚIA NU ESTE ÎN BAZA RT.</div>`;
             }
         } catch (e) {
-            showNotify("EROARE TRANZY (CORS?)");
+            showNotify("EROARE CONEXIUNE TRANZY");
         }
     }
 
@@ -180,8 +187,13 @@
         list.style.opacity = "0.3";
         
         try {
-            const res = await fetch(`https://api.tranzy.ai/public/v1/opendata/stops/${stopId}/arrivals`, {
-                headers: { 'X-Agency-Id': 'cluj', 'X-API-KEY': API_KEY }
+            const targetUrl = `https://api.tranzy.ai/public/v1/opendata/stops/${stopId}/arrivals`;
+            const res = await fetch(PROXY + encodeURIComponent(targetUrl), {
+                headers: { 
+                    'X-Agency-Id': 'cluj', 
+                    'X-API-KEY': API_KEY,
+                    'Accept': 'application/json'
+                }
             });
             const arrivals = await res.json();
 
@@ -241,3 +253,4 @@
 </script>
 </body>
 </html>
+

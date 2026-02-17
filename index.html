@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>bus-cluj-v15</title>
+    <title>bus-cluj-v16-rt</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -16,10 +16,9 @@
         }
         #map { height: 100vh; width: 100vw; background: #000; }
 
-        /* Bara Slim Sus */
         #top-bar {
             position: fixed; top: 0; left: 0; right: 0;
-            background: #000; height: 22px; /* Super subțire */
+            background: #000; height: 22px;
             display: flex; align-items: center; justify-content: center;
             z-index: 4000; border-bottom: 1px solid #111;
             opacity: 0; transition: opacity 0.3s;
@@ -27,7 +26,6 @@
         }
         #status-text { font-size: 9px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; color: #eee; }
 
-        /* Controale */
         .ui-group {
             position: fixed; bottom: 25px; right: 20px;
             display: flex; flex-direction: column; gap: 10px; z-index: 1000;
@@ -43,7 +41,6 @@
         .btn-action svg { width: 20px; fill: white; pointer-events: none; }
         .active-lock { border-color: var(--accent); box-shadow: 0 0 10px rgba(0,255,136,0.15); }
 
-        /* Panel Stație */
         #panel {
             position: fixed; bottom: 0; left: 0; right: 0;
             background: #080808; border-top: 1px solid #222;
@@ -57,13 +54,12 @@
         .close-icon { font-size: 32px; color: #333; cursor: pointer; line-height: 24px; }
         .bus-item { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid #151515; }
         .line { color: var(--accent); font-weight: 800; font-size: 18px; }
-        .eta { color: #666; font-size: 13px; }
+        .eta { color: #aaa; font-size: 13px; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div id="top-bar"><span id="status-text">NOTIFICARE</span></div>
-
 <div id="map"></div>
 
 <div class="ui-group" id="controls">
@@ -78,7 +74,7 @@
     <div class="st-header">
         <div>
             <div class="st-name" id="p-name">STATION</div>
-            <div class="refresh-btn" onclick="refreshData()">REÎNCARCĂ</div>
+            <div class="refresh-btn" id="reloader-btn">REÎNCARCĂ</div>
         </div>
         <div class="close-icon" onclick="closePanel()">×</div>
     </div>
@@ -89,7 +85,9 @@
 <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 
 <script>
-    // 1. Ordine Harti & Sursa Stabilă Topo
+    const API_KEY = 'yyAwUKMbMg7GFnXqDqQxfGEATuRpXGrsywdhaHZO';
+    let currentStopId = null;
+
     const maps = [
         { name: 'Satelit', layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}') },
         { name: 'Street', layer: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png') },
@@ -104,13 +102,6 @@
         doubleClickZoom: false 
     }).setView([46.76, 23.58], 14);
 
-    // Eroare incarcare harta (Tile Error)
-    maps.forEach(m => {
-        m.layer.on('tileerror', () => {
-            showNotify("EROARE HARTĂ: DĂ REFRESH LA PAGINĂ", 5000);
-        });
-    });
-
     function cycleMaps() {
         map.removeLayer(maps[currentIdx].layer);
         currentIdx = (currentIdx + 1) % maps.length;
@@ -118,7 +109,6 @@
         showNotify(maps[currentIdx].name);
     }
 
-    // 2. Control Rotație
     let isLocked = true;
     let lastTap = 0;
     const northBtn = document.getElementById('north-btn');
@@ -149,7 +139,6 @@
         document.getElementById('compass-svg').style.transform = `rotate(${-map.getBearing()}deg)`;
     });
 
-    // 3. UI Notify Slim
     function showNotify(text, duration = 2000) {
         const bar = document.getElementById('top-bar');
         document.getElementById('status-text').innerText = text;
@@ -157,50 +146,88 @@
         setTimeout(() => { bar.style.opacity = "0"; }, duration);
     }
 
-    // 4. Stații
+    // --- LOGICA TRANZY REAL-TIME ---
+
+    async function openPanel(name, latlng) {
+        document.getElementById('p-name').innerText = name;
+        document.getElementById('panel').classList.add('open');
+        document.getElementById('controls').classList.add('up');
+        
+        const list = document.getElementById('bus-list');
+        list.innerHTML = `<div style="color:#444; font-size:10px; letter-spacing:1px;">IDENTIFICARE TRANZY...</div>`;
+
+        try {
+            const radius = 0.001; 
+            const findStop = await fetch(`https://api.tranzy.ai/public/v1/opendata/stops?lat=${latlng.lat}&lon=${latlng.lng}&dist=${radius}`, {
+                headers: { 'X-Agency-Id': 'cluj', 'X-API-KEY': API_KEY }
+            });
+            const stopData = await findStop.json();
+            
+            if (stopData && stopData.length > 0) {
+                currentStopId = stopData[0].id;
+                fetchRealTimes(currentStopId);
+            } else {
+                list.innerHTML = `<div style="color:#666; font-size:12px;">STAȚIA NU ESTE ÎN BAZA RT.</div>`;
+            }
+        } catch (e) {
+            showNotify("EROARE TRANZY (CORS?)");
+        }
+    }
+
+    async function fetchRealTimes(stopId) {
+        if (!stopId) return;
+        const list = document.getElementById('bus-list');
+        list.style.opacity = "0.3";
+        
+        try {
+            const res = await fetch(`https://api.tranzy.ai/public/v1/opendata/stops/${stopId}/arrivals`, {
+                headers: { 'X-Agency-Id': 'cluj', 'X-API-KEY': API_KEY }
+            });
+            const arrivals = await res.json();
+
+            if (!arrivals || arrivals.length === 0) {
+                list.innerHTML = `<div style="color:#444; font-size:12px; padding:20px 0;">FĂRĂ SOSIRI PROGRAMATE.</div>`;
+            } else {
+                list.innerHTML = arrivals.map(bus => `
+                    <div class="bus-item">
+                        <span class="line">${bus.routeShortName}</span>
+                        <span class="eta">${Math.round(bus.arrivalIn / 60)} MIN</span>
+                    </div>
+                `).join('');
+            }
+        } catch (e) {
+            showNotify("EROARE FETCH DATE");
+        } finally {
+            list.style.opacity = "1";
+        }
+    }
+
+    document.getElementById('reloader-btn').addEventListener('click', () => fetchRealTimes(currentStopId));
+
+    // --- INITIALIZARE STATII (OSM) ---
+
     async function getStops() {
         showNotify("ÎNCĂRCARE STAȚII...");
         const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(`[out:json];node["highway"="bus_stop"](46.70,23.40,46.85,23.70);out body;`);
         try {
             const res = await fetch(url);
-            if(!res.ok) throw new Error();
             const data = await res.json();
             data.elements.forEach(s => {
-                L.circleMarker([s.lat, s.lon], { radius: 6, fillColor: '#00ff88', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(map);
-                L.circleMarker([s.lat, s.lon], { radius: 25, stroke: false, fillOpacity: 0, interactive: true })
-                 .addTo(map).on('click', () => openPanel(s.tags.name || "STATION"));
+                const marker = L.circleMarker([s.lat, s.lon], { radius: 6, fillColor: '#00ff88', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(map);
+                const hitbox = L.circleMarker([s.lat, s.lon], { radius: 25, stroke: false, fillOpacity: 0, interactive: true }).addTo(map);
+                
+                hitbox.on('click', () => openPanel(s.tags.name || "STATION", {lat: s.lat, lng: s.lon}));
             });
             showNotify("STAȚII OK");
         } catch(e) { 
-            showNotify("EROARE: REÎNCARCĂ PAGINA (REFRESH)", 6000); 
+            showNotify("EROARE: REÎNCARCĂ PAGINA", 6000); 
         }
-    }
-
-    function openPanel(name) {
-        document.getElementById('p-name').innerText = name;
-        refreshData();
-        document.getElementById('panel').classList.add('open');
-        document.getElementById('controls').classList.add('up');
-    }
-
-    function refreshData() {
-        const list = document.getElementById('bus-list');
-        list.style.opacity = "0.3";
-        setTimeout(() => {
-            const lines = ["24B", "M26", "6", "9", "30", "M21", "25", "3"];
-            list.innerHTML = lines.sort(() => 0.5 - Math.random()).slice(0, 3).map(l => `
-                <div class="bus-item">
-                    <span class="line">${l}</span>
-                    <span class="eta">în ${Math.floor(Math.random()*15)+2} min</span>
-                </div>
-            `).join('');
-            list.style.opacity = "1";
-        }, 300);
     }
 
     function closePanel() {
         document.getElementById('panel').classList.remove('open');
         document.getElementById('controls').classList.remove('up');
+        currentStopId = null;
     }
 
     function locateMe() { map.locate({setView: false, enableHighAccuracy: true}); }

@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>bus-cluj-v10</title>
+    <title>bus-cluj-v11</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
         :root { --accent: #00ff88; --bg: #111; }
         body, html { margin: 0; padding: 0; background: #000; font-family: -apple-system, sans-serif; overflow: hidden; color: white; }
-        #map { height: 100vh; width: 100vw; }
+        #map { height: 100vh; width: 100vw; touch-action: none; } /* Prevenim scroll-ul default de browser */
 
-        /* Controale */
         .ui-group {
             position: fixed; bottom: 25px; right: 20px;
             display: flex; flex-direction: column; gap: 10px;
@@ -28,7 +27,6 @@
         .btn-action svg { width: 20px; fill: white; transition: transform 0.2s; }
         .active-lock { border-color: var(--accent); box-shadow: 0 0 10px rgba(0,255,136,0.3); }
 
-        /* Widget Stație */
         #panel {
             position: fixed; bottom: 0; left: 0; right: 0;
             background: #111; border-top: 1px solid #333;
@@ -65,11 +63,11 @@
 </head>
 <body>
 
-<div id="toast">MOD ROTIRE ACTIV (2 DEGETE)</div>
+<div id="toast">ROTATIE LIBERA (2 DEGETE)</div>
 <div id="map"></div>
 
 <div class="ui-group" id="controls">
-    <button class="btn-action active-lock" id="north-btn" title="Double tap to unlock rotation">
+    <button class="btn-action active-lock" id="north-btn">
         <svg id="compass-svg" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
     </button>
     <button class="btn-action" onclick="cycleMaps()">MAP</button>
@@ -97,61 +95,72 @@
         street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
     };
 
+    // Initializare cu rotire setata corect
     const map = L.map('map', { 
         zoomControl: false, 
         attributionControl: false, 
         layers: [maps.sat],
         rotate: true,
-        touchRotate: false // Blocat la start
+        bearing: 0,
+        touchRotate: false // Incepe blocat
     }).setView([46.76, 23.58], 14);
 
-    // Logică North Lock (Double Tap/Click)
     let isLocked = true;
     const northBtn = document.getElementById('north-btn');
     const toast = document.getElementById('toast');
 
-    northBtn.addEventListener('dblclick', toggleLock);
-    
-    // Suport pentru double-tap pe mobil
+    // LOGICA DOUBLE TAP (MOBILE) + DOUBLE CLICK (DESKTOP)
     let lastTap = 0;
-    northBtn.addEventListener('touchend', (e) => {
+    function handleDoubleTap(e) {
         const now = new Date().getTime();
-        if (now - lastTap < 300) { toggleLock(); e.preventDefault(); }
+        const timesince = now - lastTap;
+        if ((timesince < 300) && (timesince > 0)) {
+            toggleLock();
+            if(e) e.preventDefault();
+        }
         lastTap = now;
+    }
+
+    northBtn.addEventListener('click', (e) => {
+        handleDoubleTap(e);
+        // Daca e doar un singur click si suntem deblocati, resetam la Nord
+        setTimeout(() => {
+            const now = new Date().getTime();
+            if (now - lastTap >= 300 && !isLocked) {
+                map.setBearing(0);
+            }
+        }, 300);
     });
 
     function toggleLock() {
         isLocked = !isLocked;
-        // Activăm/Deactivăm rotația din degete
-        map.touchRotate.enabled( !isLocked );
         
         if(!isLocked) {
+            // DEBLOCARE: Permitem interactiunea cu 2 degete
+            map.touchRotate.enable();
             northBtn.classList.remove('active-lock');
             toast.style.display = 'block';
-            setTimeout(() => toast.style.display = 'none', 2500);
+            setTimeout(() => toast.style.display = 'none', 2000);
         } else {
-            northBtn.classList.add('active-lock');
+            // BLOCARE: Oprim rotirea si resetam unghiul
+            map.touchRotate.disable();
             map.setBearing(0);
+            northBtn.classList.add('active-lock');
         }
     }
-
-    // Resetare Nord la click simplu (doar dacă e deblocat)
-    northBtn.addEventListener('click', () => { if(!isLocked) map.setBearing(0); });
 
     map.on('rotate', () => {
         document.getElementById('compass-svg').style.transform = `rotate(${-map.getBearing()}deg)`;
     });
 
-    // Schimbare Hărți
-    let keys = Object.keys(maps);
-    let curIdx = 0;
     function cycleMaps() {
+        let keys = Object.keys(maps);
+        let curIdx = 0;
+        keys.forEach((k, i) => { if(map.hasLayer(maps[k])) curIdx = i; });
         map.removeLayer(maps[keys[curIdx]]);
-        curIdx = (curIdx + 1) % keys.length;
-        map.addLayer(maps[keys[curIdx]]);
+        map.addLayer(maps[keys[(curIdx + 1) % keys.length]]);
     }
 
-    // Stații
     async function getStops() {
         const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(`[out:json];node["highway"="bus_stop"](46.70,23.40,46.85,23.70);out body;`);
         try {
@@ -165,7 +174,6 @@
         } catch(e) {}
     }
 
-    // Logică Panel & Refresh
     function openPanel(name) {
         document.getElementById('p-name').innerText = name;
         refreshData();
@@ -176,7 +184,6 @@
     function refreshData() {
         const list = document.getElementById('bus-list');
         list.style.opacity = "0.4";
-        
         setTimeout(() => {
             const mock = ["24B", "M26", "6", "9", "30", "M21"];
             list.innerHTML = mock.sort(() => 0.5 - Math.random()).slice(0, 3).map(l => `
@@ -186,7 +193,7 @@
                 </div>
             `).join('');
             list.style.opacity = "1";
-        }, 400);
+        }, 300);
     }
 
     function closePanel() {
@@ -195,7 +202,6 @@
     }
 
     function locateMe() { map.locate({setView: false, enableHighAccuracy: true}); }
-
     map.on('locationfound', e => {
         map.flyTo(e.latlng, 17, { duration: 1.5 });
         L.circleMarker(e.latlng, { radius: 8, fillColor: '#007AFF', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);

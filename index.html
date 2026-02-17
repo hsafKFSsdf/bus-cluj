@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>bus-cluj-v9</title>
+    <title>bus-cluj-v10</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
         :root { --accent: #00ff88; --bg: #111; }
-        body, html { margin: 0; padding: 0; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; color: white; }
+        body, html { margin: 0; padding: 0; background: #000; font-family: -apple-system, sans-serif; overflow: hidden; color: white; }
         #map { height: 100vh; width: 100vw; }
 
-        /* Meniu Control Dreapta Jos */
+        /* Controale */
         .ui-group {
             position: fixed; bottom: 25px; right: 20px;
             display: flex; flex-direction: column; gap: 10px;
@@ -25,10 +25,10 @@
             border: 1px solid #333; color: white; display: flex; 
             align-items: center; justify-content: center; cursor: pointer;
         }
-        .btn-action svg { width: 20px; fill: white; }
-        .active-lock { border-color: var(--accent); box-shadow: 0 0 10px var(--accent); }
+        .btn-action svg { width: 20px; fill: white; transition: transform 0.2s; }
+        .active-lock { border-color: var(--accent); box-shadow: 0 0 10px rgba(0,255,136,0.3); }
 
-        /* Panou Statii - Minimalist */
+        /* Widget Stație */
         #panel {
             position: fixed; bottom: 0; left: 0; right: 0;
             background: #111; border-top: 1px solid #333;
@@ -37,9 +37,17 @@
         }
         #panel.open { transform: translateY(0); }
 
-        .st-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .st-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+        .st-info { display: flex; flex-direction: column; gap: 5px; }
         .st-name { font-size: 16px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
-        .close-icon { font-size: 28px; color: #555; cursor: pointer; line-height: 20px; }
+        
+        .refresh-btn { 
+            font-size: 11px; color: var(--accent); cursor: pointer; 
+            text-transform: uppercase; border: 1px solid var(--accent);
+            padding: 4px 8px; width: fit-content; margin-top: 5px;
+        }
+        
+        .close-icon { font-size: 32px; color: #444; cursor: pointer; line-height: 24px; padding-left: 10px; }
 
         .bus-item {
             display: flex; justify-content: space-between; padding: 12px 0;
@@ -48,7 +56,6 @@
         .line { color: var(--accent); font-weight: 700; font-size: 18px; }
         .eta { font-size: 14px; color: #888; }
 
-        /* Toast pentru mod rotire */
         #toast {
             position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
             background: var(--accent); color: black; padding: 5px 15px;
@@ -58,11 +65,11 @@
 </head>
 <body>
 
-<div id="toast">ROTIRE DEBLOCATĂ</div>
+<div id="toast">MOD ROTIRE ACTIV (2 DEGETE)</div>
 <div id="map"></div>
 
 <div class="ui-group" id="controls">
-    <button class="btn-action active-lock" id="north-btn" title="Double click to unlock rotation">
+    <button class="btn-action active-lock" id="north-btn" title="Double tap to unlock rotation">
         <svg id="compass-svg" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
     </button>
     <button class="btn-action" onclick="cycleMaps()">MAP</button>
@@ -71,7 +78,10 @@
 
 <div id="panel">
     <div class="st-header">
-        <div class="st-name" id="p-name">SELECT_STATION</div>
+        <div class="st-info">
+            <div class="st-name" id="p-name">SELECT_STATION</div>
+            <div class="refresh-btn" onclick="refreshData()">Reîncarcă</div>
+        </div>
         <div class="close-icon" onclick="closePanel()">×</div>
     </div>
     <div id="bus-list"></div>
@@ -81,12 +91,10 @@
 <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 
 <script>
-    // 1. Configurări Hărți
     const maps = {
         sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
         dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'),
-        street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
-        topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png')
+        street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
     };
 
     const map = L.map('map', { 
@@ -94,36 +102,47 @@
         attributionControl: false, 
         layers: [maps.sat],
         rotate: true,
-        touchRotate: false // Blocat pe Nord la început
+        touchRotate: false // Blocat la start
     }).setView([46.76, 23.58], 14);
 
-    // 2. Logică North Lock / Unlock (Double Click)
+    // Logică North Lock (Double Tap/Click)
     let isLocked = true;
     const northBtn = document.getElementById('north-btn');
     const toast = document.getElementById('toast');
 
-    northBtn.addEventListener('dblclick', () => {
+    northBtn.addEventListener('dblclick', toggleLock);
+    
+    // Suport pentru double-tap pe mobil
+    let lastTap = 0;
+    northBtn.addEventListener('touchend', (e) => {
+        const now = new Date().getTime();
+        if (now - lastTap < 300) { toggleLock(); e.preventDefault(); }
+        lastTap = now;
+    });
+
+    function toggleLock() {
         isLocked = !isLocked;
-        map.options.touchRotate = !isLocked;
+        // Activăm/Deactivăm rotația din degete
+        map.touchRotate.enabled( !isLocked );
         
         if(!isLocked) {
             northBtn.classList.remove('active-lock');
             toast.style.display = 'block';
-            setTimeout(() => toast.style.display = 'none', 2000);
+            setTimeout(() => toast.style.display = 'none', 2500);
         } else {
             northBtn.classList.add('active-lock');
             map.setBearing(0);
         }
-    });
+    }
 
-    // Singur click doar recentrează dacă e deblocat
+    // Resetare Nord la click simplu (doar dacă e deblocat)
     northBtn.addEventListener('click', () => { if(!isLocked) map.setBearing(0); });
 
     map.on('rotate', () => {
         document.getElementById('compass-svg').style.transform = `rotate(${-map.getBearing()}deg)`;
     });
 
-    // 3. Cycle Maps
+    // Schimbare Hărți
     let keys = Object.keys(maps);
     let curIdx = 0;
     function cycleMaps() {
@@ -132,7 +151,7 @@
         map.addLayer(maps[keys[curIdx]]);
     }
 
-    // 4. Stații (Hitbox mărit)
+    // Stații
     async function getStops() {
         const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(`[out:json];node["highway"="bus_stop"](46.70,23.40,46.85,23.70);out body;`);
         try {
@@ -140,31 +159,34 @@
             const data = await res.json();
             data.elements.forEach(s => {
                 L.circleMarker([s.lat, s.lon], { radius: 6, fillColor: '#00ff88', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(map);
-                // Hitbox invizibil pentru mobil
-                L.circleMarker([s.lat, s.lon], { radius: 20, stroke: false, fillOpacity: 0, interactive: true })
+                L.circleMarker([s.lat, s.lon], { radius: 25, stroke: false, fillOpacity: 0, interactive: true })
                  .addTo(map).on('click', () => openPanel(s.tags.name || "Stație CTP"));
             });
         } catch(e) {}
     }
 
-    // 5. Panel Logic
+    // Logică Panel & Refresh
     function openPanel(name) {
         document.getElementById('p-name').innerText = name;
+        refreshData();
+        document.getElementById('panel').classList.add('open');
+        document.getElementById('controls').classList.add('up');
+    }
+
+    function refreshData() {
         const list = document.getElementById('bus-list');
-        list.innerHTML = `<div style="color:#444; font-size:12px;">Se caută sosiri...</div>`;
+        list.style.opacity = "0.4";
         
         setTimeout(() => {
-            const mock = ["24B", "M26", "6", "9", "30"];
-            list.innerHTML = mock.slice(0, 3).map(l => `
+            const mock = ["24B", "M26", "6", "9", "30", "M21"];
+            list.innerHTML = mock.sort(() => 0.5 - Math.random()).slice(0, 3).map(l => `
                 <div class="bus-item">
                     <span class="line">${l}</span>
                     <span class="eta">în ${Math.floor(Math.random()*15)+2} min</span>
                 </div>
             `).join('');
-        }, 300);
-
-        document.getElementById('panel').classList.add('open');
-        document.getElementById('controls').classList.add('up');
+            list.style.opacity = "1";
+        }, 400);
     }
 
     function closePanel() {
@@ -172,21 +194,18 @@
         document.getElementById('controls').classList.remove('up');
     }
 
-    function locateMe() { 
-        map.locate({setView: false, enableHighAccuracy: true}); 
-    }
+    function locateMe() { map.locate({setView: false, enableHighAccuracy: true}); }
 
     map.on('locationfound', e => {
         map.flyTo(e.latlng, 17, { duration: 1.5 });
         L.circleMarker(e.latlng, { radius: 8, fillColor: '#007AFF', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
     });
 
-    // Start
     locateMe();
     getStops();
 </script>
 </body>
 </html>
-</html>
+
 
 

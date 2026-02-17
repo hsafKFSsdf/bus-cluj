@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>bus-cluj-v4</title>
+    <title>bus-cluj-v5</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        :root { --primary: #4CAF50; --bg: #000; --panel: rgba(25,25,25,0.98); }
+        :root { --primary: #4CAF50; --bg: #000; --panel: rgba(20, 20, 20, 0.98); }
         body, html { margin: 0; padding: 0; background: var(--bg); font-family: -apple-system, sans-serif; overflow: hidden; }
         #map { height: 100vh; width: 100vw; background: #000; }
 
+        /* Controale dreapta jos */
         .ui-group {
             position: fixed; bottom: 25px; right: 20px;
             display: flex; flex-direction: column; gap: 12px;
@@ -22,33 +23,39 @@
         .btn-round {
             width: 52px; height: 52px; background: #1a1a1a; border: 1px solid #333;
             border-radius: 14px; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 6px 15px rgba(0,0,0,0.5); cursor: pointer; fill: white;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.5); cursor: pointer; fill: white; border: none;
         }
 
         #panel {
             position: fixed; bottom: 0; left: 0; right: 0;
             background: var(--panel); backdrop-filter: blur(20px);
-            padding: 20px; border-radius: 25px 25px 0 0;
+            padding: 20px; border-radius: 28px 28px 0 0;
             transform: translateY(100%); transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 2000; border-top: 1px solid rgba(255,255,255,0.1);
             max-height: 40vh; color: white;
         }
         #panel.open { transform: translateY(0); }
 
-        .header-panel { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .st-name { font-size: 20px; font-weight: 800; color: var(--primary); margin: 0; }
-
+        .st-name { font-size: 22px; font-weight: 800; color: var(--primary); margin: 0 0 15px 0; }
         .bus-row {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 14px; background: rgba(255,255,255,0.03);
-            border-radius: 12px; margin-bottom: 8px;
+            padding: 14px; background: rgba(255,255,255,0.05);
+            border-radius: 15px; margin-bottom: 10px;
         }
-        .line-box { background: #e31e24; color: white; padding: 4px 10px; border-radius: 6px; font-weight: 900; }
+        .line-box { background: #e31e24; color: white; padding: 5px 12px; border-radius: 8px; font-weight: 900; font-size: 16px; }
         .time-text { color: var(--primary); font-weight: bold; font-size: 18px; }
+        
+        #loader {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: var(--primary); color: white; padding: 8px 16px;
+            border-radius: 20px; font-size: 12px; font-weight: bold; z-index: 3000;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: none;
+        }
     </style>
 </head>
 <body>
 
+<div id="loader">Se încarcă stațiile CTP...</div>
 <div id="map"></div>
 
 <div class="ui-group" id="controls">
@@ -61,40 +68,15 @@
 </div>
 
 <div id="panel">
-    <div style="width: 40px; height: 4px; background: #444; margin: -10px auto 15px; border-radius: 10px;" onclick="closePanel()"></div>
-    <div id="panel-content"></div>
+    <div style="width: 45px; height: 5px; background: #444; margin: -10px auto 20px; border-radius: 10px;" onclick="closePanel()"></div>
+    <h2 class="st-name" id="p-name">Stație</h2>
+    <div id="bus-list"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // --- DATABASE STATII REALE (Eșantion extins) ---
-    const REAL_STATIONS = [
-        // CENTRU
-        {n:"Sora", lat:46.7719, lng:23.5894, r:["24B","9","30"]},
-        {n:"Memorandumului Sud", lat:46.7695, lng:23.5855, r:["1","6","25"]},
-        {n:"Piața Unirii", lat:46.7703, lng:23.5890, r:["3","35","21"]},
-        {n:"Central", lat:46.7745, lng:23.5898, r:["31","35","M31"]},
-        {n:"Opera", lat:46.7700, lng:23.5960, r:["32","32B","46L"]},
-        // FLORESTI (Principale)
-        {n:"Primăria Florești", lat:46.7454, lng:23.4832, r:["M21","M26"]},
-        {n:"Poligonului Sud", lat:46.7490, lng:23.5012, r:["M22","M25"]},
-        {n:"Vivo Center", lat:46.7512, lng:23.5273, r:["24B","28B","M26"]},
-        {n:"Eroilor", lat:46.7420, lng:23.4900, r:["M21","M26"]},
-        {n:"Sub Cetate", lat:46.7360, lng:23.4800, r:["M21"]},
-        // MANASTUR
-        {n:"Minerva", lat:46.7554, lng:23.5582, r:["25","6","1"]},
-        {n:"Calea Florești", lat:46.7510, lng:23.5410, r:["M26","24B"]},
-        {n:"Izlazului", lat:46.7530, lng:23.5530, r:["43","43B"]},
-        // MARASTI
-        {n:"Piața Mărăști", lat:46.7780, lng:23.6150, r:["24B","47","8"]},
-        {n:"Regionala CFR", lat:46.7745, lng:23.6010, r:["4","30"]},
-        {n:"Fabricii", lat:46.7800, lng:23.6200, r:["24","25"]},
-        // GARA / AUTOGARA
-        {n:"Gara Centrală", lat:46.7846, lng:23.5866, r:["101","9","35"]},
-        {n:"Autogara", lat:46.7860, lng:23.5820, r:["31","M31"]}
-    ];
-
-    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([46.76, 23.55], 13);
+    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([46.765, 23.55], 13);
+    
     const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
     const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
 
@@ -103,44 +85,83 @@
         else { map.removeLayer(sat); map.addLayer(dark); }
     }
 
-    function locateMe() {
-        map.locate({setView: false}); 
+    // --- FUNCTIA DE DOWNLOAD STATII REALE ---
+    async function fetchAllStops() {
+        const loader = document.getElementById('loader');
+        loader.style.display = 'block';
+        
+        // Query pentru OpenStreetMap (Overpass API) - cauta bus stops in Cluj & Floresti
+        const query = `
+            [out:json][timeout:25];
+            (
+              node["highway"="bus_stop"](46.70,23.40,46.85,23.70);
+            );
+            out body;
+        `;
+        const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            data.elements.forEach(stop => {
+                if (stop.lat && stop.lon) {
+                    const name = stop.tags.name || "Stație CTP";
+                    renderStop(stop.lat, stop.lon, name);
+                }
+            });
+        } catch (error) {
+            console.error("Eroare la incarcarea statiilor:", error);
+        } finally {
+            loader.style.display = 'none';
+        }
     }
 
-    map.on('locationfound', e => {
-        // Cerinta 3: Glisare lina catre locatie
-        map.flyTo(e.latlng, 17, { animate: true, duration: 1.5 });
-        L.circleMarker(e.latlng, { radius: 8, fillColor: '#007AFF', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
-    });
-
-    // Randare statii
-    REAL_STATIONS.forEach(s => {
-        L.circleMarker([s.lat, s.lng], {
+    function renderStop(lat, lon, name) {
+        L.circleMarker([lat, lon], {
             radius: 5, fillColor: '#4CAF50', color: '#fff', weight: 1.5, fillOpacity: 1
         }).addTo(map).on('click', () => {
-            const content = `
-                <div class="header-panel">
-                    <h2 class="st-name">${s.n}</h2>
-                    <button onclick="closePanel()" style="background:none; border:none; color:#777; font-size:24px;">✕</button>
-                </div>
-                ${s.r.map(r => `
-                    <div class="bus-row">
-                        <span class="line-box">${r}</span>
-                        <span class="time-text">${Math.floor(Math.random()*15)+1} min</span>
-                    </div>
-                `).join('')}
-            `;
-            document.getElementById('panel-content').innerHTML = content;
-            document.getElementById('panel').classList.add('open');
-            document.getElementById('controls').classList.add('up');
+            openStation(name);
         });
-    });
+    }
+
+    function openStation(name) {
+        document.getElementById('p-name').innerText = name;
+        const list = document.getElementById('bus-list');
+        
+        // Simulare rute bazata pe locatie/nume
+        const mockLines = name.includes("Florești") || name.includes("Cetatea") ? ["M21", "M26"] : ["24B", "6", "30", "9"];
+        
+        list.innerHTML = mockLines.map(line => `
+            <div class="bus-row">
+                <span class="line-box">${line}</span>
+                <span class="time-text">${Math.floor(Math.random()*12)+2} min</span>
+            </div>
+        `).join('');
+
+        document.getElementById('panel').classList.add('open');
+        document.getElementById('controls').classList.add('up');
+    }
 
     function closePanel() {
         document.getElementById('panel').classList.remove('open');
         document.getElementById('controls').classList.remove('up');
     }
+
+    function locateMe() {
+        map.locate({setView: false});
+    }
+
+    map.on('locationfound', e => {
+        map.flyTo(e.latlng, 17, { animate: true, duration: 1.8 });
+        L.circleMarker(e.latlng, { radius: 9, fillColor: '#007AFF', color: '#fff', weight: 3, fillOpacity: 1 }).addTo(map);
+    });
+
+    // Pornim descarcarea statiilor
+    fetchAllStops();
 </script>
 </body>
 </html>
+</html>
+
 

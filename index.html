@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>bus-cluj-v15</title>
-    
+    <title>bus-cluj-v16</title>
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
+
     <style>
         :root { --accent: #00ff88; }
-        body, html { 
-            margin: 0; padding: 0; background: #000; 
+        body, html {
+            margin: 0; padding: 0; background: #000;
             font-family: -apple-system, sans-serif; overflow: hidden; color: white;
             touch-action: none;
         }
@@ -19,7 +19,7 @@
         /* Bara Slim Sus */
         #top-bar {
             position: fixed; top: 0; left: 0; right: 0;
-            background: #000; height: 22px; /* Super subțire */
+            background: #000; height: 22px;
             display: flex; align-items: center; justify-content: center;
             z-index: 4000; border-bottom: 1px solid #111;
             opacity: 0; transition: opacity 0.3s;
@@ -36,7 +36,7 @@
 
         .btn-action {
             width: 48px; height: 48px; background: rgba(15,15,15,0.98);
-            border: 1px solid #333; color: white; display: flex; 
+            border: 1px solid #333; color: white; display: flex;
             align-items: center; justify-content: center; cursor: pointer;
             touch-action: manipulation;
         }
@@ -47,7 +47,8 @@
         #panel {
             position: fixed; bottom: 0; left: 0; right: 0;
             background: #080808; border-top: 1px solid #222;
-            padding: 25px; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 25px; transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 2000; height: 30vh; overflow-y: auto;
         }
         #panel.open { transform: translateY(0); }
@@ -63,7 +64,6 @@
 <body>
 
 <div id="top-bar"><span id="status-text">NOTIFICARE</span></div>
-
 <div id="map"></div>
 
 <div class="ui-group" id="controls">
@@ -98,10 +98,10 @@
     ];
 
     let currentIdx = 0;
-    const map = L.map('map', { 
-        zoomControl: false, attributionControl: false, 
+    const map = L.map('map', {
+        zoomControl: false, attributionControl: false,
         layers: [maps[0].layer], rotate: true, touchRotate: false,
-        doubleClickZoom: false 
+        doubleClickZoom: false
     }).setView([46.76, 23.58], 14);
 
     // Eroare incarcare harta (Tile Error)
@@ -123,7 +123,7 @@
     let lastTap = 0;
     const northBtn = document.getElementById('north-btn');
 
-    northBtn.addEventListener('click', (e) => {
+    northBtn.addEventListener('click', () => {
         const now = Date.now();
         if (now - lastTap < 300) {
             isLocked = !isLocked;
@@ -157,7 +157,49 @@
         setTimeout(() => { bar.style.opacity = "0"; }, duration);
     }
 
-    // 4. Stații
+    // ---------------------------
+    // 🚍 LIVE VEHICLES (BusMaps via backend local)
+    // ---------------------------
+    const BACKEND_URL = "http://localhost:3000/api/vehicles"; // 👈 după ce îl pui pe Render, schimbi aici
+    let vehicleLayer = L.layerGroup().addTo(map);
+
+    async function loadVehicles() {
+        try {
+            const res = await fetch(BACKEND_URL);
+            const data = await res.json();
+
+            if (!data || !Array.isArray(data.vehicles)) {
+                showNotify("DATE VEHICULE INVALID", 2500);
+                return;
+            }
+
+            vehicleLayer.clearLayers();
+
+            data.vehicles.forEach(v => {
+                const label = v.line ? `Linia ${v.line}` : "BUS";
+
+                L.circleMarker([v.lat, v.lon], {
+                    radius: 7,
+                    fillColor: "#ff0000",
+                    color: "#fff",
+                    weight: 1,
+                    fillOpacity: 1
+                })
+                .addTo(vehicleLayer)
+                .bindTooltip(label, { direction: "top", offset: [0, -6] });
+            });
+
+        } catch (e) {
+            showNotify("EROARE LIVE (PORNEȘTE SERVERUL)", 3500);
+        }
+    }
+
+    // actualizează la 5 sec
+    setInterval(loadVehicles, 5000);
+    // pornește imediat
+    loadVehicles();
+
+    // 4. Stații (OSM)
     async function getStops() {
         showNotify("ÎNCĂRCARE STAȚII...");
         const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(`[out:json];node["highway"="bus_stop"](46.70,23.40,46.85,23.70);out body;`);
@@ -171,8 +213,8 @@
                  .addTo(map).on('click', () => openPanel(s.tags.name || "STATION"));
             });
             showNotify("STAȚII OK");
-        } catch(e) { 
-            showNotify("EROARE: REÎNCARCĂ PAGINA (REFRESH)", 6000); 
+        } catch(e) {
+            showNotify("EROARE: REÎNCARCĂ PAGINA (REFRESH)", 6000);
         }
     }
 
@@ -183,6 +225,7 @@
         document.getElementById('controls').classList.add('up');
     }
 
+    // încă mock în panel (îl facem real după ce pui GTFS/static sau endpoint de ETA)
     function refreshData() {
         const list = document.getElementById('bus-list');
         list.style.opacity = "0.3";
@@ -214,3 +257,4 @@
 </script>
 </body>
 </html>
+

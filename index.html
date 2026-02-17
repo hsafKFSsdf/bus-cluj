@@ -3,15 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>bus-cluj-v11</title>
+    <title>bus-cluj-v12</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
         :root { --accent: #00ff88; --bg: #111; }
         body, html { margin: 0; padding: 0; background: #000; font-family: -apple-system, sans-serif; overflow: hidden; color: white; }
-        #map { height: 100vh; width: 100vw; touch-action: none; } /* Prevenim scroll-ul default de browser */
+        #map { height: 100vh; width: 100vw; touch-action: none; }
 
+        /* Status Notification (Loading) */
+        #status-bar {
+            position: fixed; top: 20px; left: 20px;
+            background: rgba(20, 20, 20, 0.9); border-left: 3px solid var(--accent);
+            padding: 10px 15px; font-size: 12px; font-weight: bold;
+            z-index: 3000; letter-spacing: 0.5px;
+            display: flex; align-items: center; gap: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: transform 0.3s, opacity 0.3s;
+        }
+        .dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+
+        /* Controale */
         .ui-group {
             position: fixed; bottom: 25px; right: 20px;
             display: flex; flex-direction: column; gap: 10px;
@@ -27,6 +41,7 @@
         .btn-action svg { width: 20px; fill: white; transition: transform 0.2s; }
         .active-lock { border-color: var(--accent); box-shadow: 0 0 10px rgba(0,255,136,0.3); }
 
+        /* Widget Stație */
         #panel {
             position: fixed; bottom: 0; left: 0; right: 0;
             background: #111; border-top: 1px solid #333;
@@ -53,17 +68,15 @@
         }
         .line { color: var(--accent); font-weight: 700; font-size: 18px; }
         .eta { font-size: 14px; color: #888; }
-
-        #toast {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            background: var(--accent); color: black; padding: 5px 15px;
-            font-size: 11px; font-weight: bold; border-radius: 20px; display: none; z-index: 4000;
-        }
     </style>
 </head>
 <body>
 
-<div id="toast">ROTATIE LIBERA (2 DEGETE)</div>
+<div id="status-bar">
+    <div class="dot"></div>
+    <span id="status-text">INIȚIALIZARE...</span>
+</div>
+
 <div id="map"></div>
 
 <div class="ui-group" id="controls">
@@ -95,57 +108,40 @@
         street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
     };
 
-    // Initializare cu rotire setata corect
     const map = L.map('map', { 
         zoomControl: false, 
         attributionControl: false, 
         layers: [maps.sat],
         rotate: true,
-        bearing: 0,
-        touchRotate: false // Incepe blocat
+        touchRotate: false 
     }).setView([46.76, 23.58], 14);
 
+    const statusText = document.getElementById('status-text');
+    const statusBar = document.getElementById('status-bar');
+
+    // LOGICA LOCK/ROTATE
     let isLocked = true;
     const northBtn = document.getElementById('north-btn');
-    const toast = document.getElementById('toast');
-
-    // LOGICA DOUBLE TAP (MOBILE) + DOUBLE CLICK (DESKTOP)
     let lastTap = 0;
-    function handleDoubleTap(e) {
-        const now = new Date().getTime();
-        const timesince = now - lastTap;
-        if ((timesince < 300) && (timesince > 0)) {
-            toggleLock();
-            if(e) e.preventDefault();
-        }
-        lastTap = now;
-    }
 
     northBtn.addEventListener('click', (e) => {
-        handleDoubleTap(e);
-        // Daca e doar un singur click si suntem deblocati, resetam la Nord
-        setTimeout(() => {
-            const now = new Date().getTime();
-            if (now - lastTap >= 300 && !isLocked) {
-                map.setBearing(0);
-            }
-        }, 300);
+        const now = new Date().getTime();
+        if (now - lastTap < 300) {
+            isLocked = !isLocked;
+            map.touchRotate.enabled(!isLocked);
+            northBtn.classList.toggle('active-lock', isLocked);
+            updateStatus(isLocked ? "NORD BLOCAT" : "ROTATIE LIBERA", 2000);
+        } else if (!isLocked) {
+            map.setBearing(0);
+        }
+        lastTap = now;
     });
 
-    function toggleLock() {
-        isLocked = !isLocked;
-        
-        if(!isLocked) {
-            // DEBLOCARE: Permitem interactiunea cu 2 degete
-            map.touchRotate.enable();
-            northBtn.classList.remove('active-lock');
-            toast.style.display = 'block';
-            setTimeout(() => toast.style.display = 'none', 2000);
-        } else {
-            // BLOCARE: Oprim rotirea si resetam unghiul
-            map.touchRotate.disable();
-            map.setBearing(0);
-            northBtn.classList.add('active-lock');
+    function updateStatus(msg, duration = 0) {
+        statusText.innerText = msg;
+        statusBar.style.opacity = "1";
+        if(duration > 0) {
+            setTimeout(() => { statusBar.style.opacity = "0"; }, duration);
         }
     }
 
@@ -159,9 +155,12 @@
         keys.forEach((k, i) => { if(map.hasLayer(maps[k])) curIdx = i; });
         map.removeLayer(maps[keys[curIdx]]);
         map.addLayer(maps[keys[(curIdx + 1) % keys.length]]);
+        updateStatus("HARTA: " + keys[(curIdx + 1) % keys.length].toUpperCase(), 1500);
     }
 
+    // STATII CU NOTIFICARE
     async function getStops() {
+        updateStatus("SE CAUTĂ STAȚII...");
         const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(`[out:json];node["highway"="bus_stop"](46.70,23.40,46.85,23.70);out body;`);
         try {
             const res = await fetch(url);
@@ -171,7 +170,10 @@
                 L.circleMarker([s.lat, s.lon], { radius: 25, stroke: false, fillOpacity: 0, interactive: true })
                  .addTo(map).on('click', () => openPanel(s.tags.name || "Stație CTP"));
             });
-        } catch(e) {}
+            updateStatus("STAȚII ÎNCĂRCATE!", 3000);
+        } catch(e) {
+            updateStatus("EROARE ÎNCĂRCARE", 5000);
+        }
     }
 
     function openPanel(name) {
@@ -205,6 +207,7 @@
     map.on('locationfound', e => {
         map.flyTo(e.latlng, 17, { duration: 1.5 });
         L.circleMarker(e.latlng, { radius: 8, fillColor: '#007AFF', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+        updateStatus("LOCAȚIE GĂSITĂ", 2000);
     });
 
     locateMe();
@@ -212,6 +215,4 @@
 </script>
 </body>
 </html>
-
-
 

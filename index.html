@@ -1,88 +1,85 @@
 <!DOCTYPE html>
 <html lang="ro">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>bus-cluj-v16</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>bus-cluj-v16</title>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-    <style>
-        :root { --accent: #00ff88; }
-        body, html {
-            margin: 0; padding: 0; background: #000;
-            font-family: -apple-system, sans-serif; overflow: hidden; color: white;
-            touch-action: none;
-        }
-        #map { height: 100vh; width: 100vw; background: #000; }
+  <style>
+    :root { --accent: #00ff88; }
+    body, html {
+      margin: 0; padding: 0; background: #000;
+      font-family: -apple-system, sans-serif; overflow: hidden; color: white;
+      touch-action: none;
+    }
+    #map { height: 100vh; width: 100vw; background: #000; }
 
-        /* Bara Slim Sus */
-        #top-bar {
-            position: fixed; top: 0; left: 0; right: 0;
-            background: #000; height: 22px;
-            display: flex; align-items: center; justify-content: center;
-            z-index: 4000; border-bottom: 1px solid #111;
-            opacity: 0; transition: opacity 0.3s;
-            pointer-events: none;
-        }
-        #status-text { font-size: 9px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; color: #eee; }
+    /* Bara Slim Sus */
+    #top-bar {
+      position: fixed; top: 0; left: 0; right: 0;
+      background: #000; height: 22px;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 4000; border-bottom: 1px solid #111;
+      opacity: 0; transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    #status-text { font-size: 9px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; color: #eee; }
 
-        /* Controale */
-        .ui-group {
-            position: fixed; bottom: 25px; right: 20px;
-            display: flex; flex-direction: column; gap: 10px; z-index: 1000;
-        }
-        .ui-group.up { transform: translateY(-32vh); }
+    /* Controale */
+    .ui-group {
+      position: fixed; bottom: 25px; right: 20px;
+      display: flex; flex-direction: column; gap: 10px; z-index: 1000;
+    }
+    .ui-group.up { transform: translateY(-32vh); }
 
-        .btn-action {
-            width: 48px; height: 48px; background: rgba(15,15,15,0.98);
-            border: 1px solid #333; color: white; display: flex;
-            align-items: center; justify-content: center; cursor: pointer;
-            touch-action: manipulation;
-        }
-        .btn-action svg { width: 20px; fill: white; pointer-events: none; }
-        .active-lock { border-color: var(--accent); box-shadow: 0 0 10px rgba(0,255,136,0.15); }
+    .btn-action {
+      width: 48px; height: 48px; background: rgba(15,15,15,0.98);
+      border: 1px solid #333; color: white; display: flex;
+      align-items: center; justify-content: center; cursor: pointer;
+      touch-action: manipulation;
+    }
+    .btn-action svg { width: 20px; fill: white; pointer-events: none; }
+    .active-lock { border-color: var(--accent); box-shadow: 0 0 10px rgba(0,255,136,0.15); }
 
-        /* Panel Stație */
-        #panel {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background: #080808; border-top: 1px solid #222;
-            padding: 25px; transform: translateY(100%);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 2000; height: 30vh; overflow-y: auto;
-        }
-        #panel.open { transform: translateY(0); }
-        .st-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-        .st-name { font-size: 14px; font-weight: 800; text-transform: uppercase; color: #fff; }
-        .refresh-btn { font-size: 10px; color: var(--accent); cursor: pointer; border: 1px solid var(--accent); padding: 5px 10px; margin-top: 8px; display: inline-block; }
-        .close-icon { font-size: 32px; color: #333; cursor: pointer; line-height: 24px; }
-        .bus-item { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid #151515; }
-        .line { color: var(--accent); font-weight: 800; font-size: 18px; }
-        .eta { color: #666; font-size: 13px; }
+    /* Panel Stație */
+    #panel {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #080808; border-top: 1px solid #222;
+      padding: 25px; transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 2000; height: 30vh; overflow-y: auto;
+    }
+    #panel.open { transform: translateY(0); }
+    .st-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+    .st-name { font-size: 14px; font-weight: 800; text-transform: uppercase; color: #fff; }
+    .refresh-btn { font-size: 10px; color: var(--accent); cursor: pointer; border: 1px solid var(--accent); padding: 5px 10px; margin-top: 8px; display: inline-block; }
+    .close-icon { font-size: 32px; color: #333; cursor: pointer; line-height: 24px; }
+    .bus-item { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid #151515; }
+    .line { color: var(--accent); font-weight: 900; font-size: 18px; }
+    .eta { color: #777; font-size: 13px; }
 
-        /* 🚍 BUS ICON */
-        .bus-icon { }
-        .bus-badge{
-            width:34px;height:34px;border-radius:50%;
-            background:#ff2d2d;border:2px solid #fff;
-            display:flex;align-items:center;justify-content:center;
-            font-weight:900;color:#fff;font-size:12px;
-            box-shadow:0 6px 16px rgba(0,0,0,.45);
-            transform-origin: 50% 50%;
-        }
-        .bus-badge span{
-            transform: rotate(0deg);
-            letter-spacing: .2px;
-        }
+    /* 🚍 BUS ICON */
+    .bus-icon { }
+    .bus-badge{
+      width:34px;height:34px;border-radius:50%;
+      background:#ff2d2d;border:2px solid #fff;
+      display:flex;align-items:center;justify-content:center;
+      font-weight:900;color:#fff;font-size:12px;
+      box-shadow:0 6px 16px rgba(0,0,0,.45);
+      transform-origin: 50% 50%;
+    }
+    .bus-badge span{ letter-spacing:.2px; }
 
-        /* 🚌 Stop icon (mai clar) */
-        .stop-dot{
-            width:10px;height:10px;border-radius:50%;
-            background: var(--accent);
-            border: 2px solid #fff;
-            box-shadow: 0 4px 14px rgba(0,0,0,.5);
-        }
-    </style>
+    /* 🛑 Stop icon */
+    .stop-dot{
+      width:10px;height:10px;border-radius:50%;
+      background: var(--accent);
+      border: 2px solid #fff;
+      box-shadow: 0 4px 14px rgba(0,0,0,.5);
+    }
+  </style>
 </head>
 <body>
 
@@ -90,308 +87,399 @@
 <div id="map"></div>
 
 <div class="ui-group" id="controls">
-    <button class="btn-action active-lock" id="north-btn">
-        <svg id="compass-svg" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
-    </button>
-    <button class="btn-action" onclick="cycleMaps()">MAP</button>
-    <button class="btn-action" onclick="locateMe()">GPS</button>
+  <button class="btn-action active-lock" id="north-btn">
+    <svg id="compass-svg" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+  </button>
+  <button class="btn-action" onclick="cycleMaps()">MAP</button>
+  <button class="btn-action" onclick="locateMe()">GPS</button>
 </div>
 
 <div id="panel">
-    <div class="st-header">
-        <div>
-            <div class="st-name" id="p-name">STATION</div>
-            <div class="refresh-btn" onclick="refreshData()">REÎNCARCĂ</div>
-        </div>
-        <div class="close-icon" onclick="closePanel()">×</div>
+  <div class="st-header">
+    <div>
+      <div class="st-name" id="p-name">STATION</div>
+      <div class="refresh-btn" onclick="refreshData()">REÎNCARCĂ</div>
     </div>
-    <div id="bus-list"></div>
+    <div class="close-icon" onclick="closePanel()">×</div>
+  </div>
+  <div id="bus-list"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 
 <script>
-    // 1. Ordine Harti & Sursa Stabilă Topo
-    const maps = [
-        { name: 'Satelit', layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}') },
-        { name: 'Street', layer: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png') },
-        { name: 'Dark', layer: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png') },
-        { name: 'Topo', layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}') }
-    ];
+  // 1. Hărți
+  const maps = [
+    { name: 'Satelit', layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}') },
+    { name: 'Street',  layer: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png') },
+    { name: 'Dark',    layer: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png') },
+    { name: 'Topo',    layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}') }
+  ];
 
-    let currentIdx = 0;
-    const map = L.map('map', {
-        zoomControl: false, attributionControl: false,
-        layers: [maps[0].layer], rotate: true, touchRotate: false,
-        doubleClickZoom: false
-    }).setView([46.76, 23.58], 14);
+  let currentIdx = 0;
+  const map = L.map('map', {
+    zoomControl: false, attributionControl: false,
+    layers: [maps[0].layer], rotate: true, touchRotate: false,
+    doubleClickZoom: false
+  }).setView([46.76, 23.58], 14);
 
-    // Eroare incarcare harta (Tile Error)
-    maps.forEach(m => {
-        m.layer.on('tileerror', () => showNotify("EROARE HARTĂ: DĂ REFRESH LA PAGINĂ", 5000));
-    });
+  maps.forEach(m => m.layer.on('tileerror', () => showNotify("EROARE HARTĂ: DĂ REFRESH", 4000)));
 
-    function cycleMaps() {
-        map.removeLayer(maps[currentIdx].layer);
-        currentIdx = (currentIdx + 1) % maps.length;
-        map.addLayer(maps[currentIdx].layer);
-        showNotify(maps[currentIdx].name);
+  function cycleMaps() {
+    map.removeLayer(maps[currentIdx].layer);
+    currentIdx = (currentIdx + 1) % maps.length;
+    map.addLayer(maps[currentIdx].layer);
+    showNotify(maps[currentIdx].name);
+  }
+
+  // 2. Rotație
+  let isLocked = true;
+  let lastTap = 0;
+  const northBtn = document.getElementById('north-btn');
+
+  northBtn.addEventListener('click', () => {
+    const now = Date.now();
+    if (now - lastTap < 300) {
+      isLocked = !isLocked;
+      if (!isLocked) {
+        map.touchRotate.enable();
+        northBtn.classList.remove('active-lock');
+        showNotify("ROTAȚIE ACTIVĂ");
+      } else {
+        map.touchRotate.disable();
+        map.setBearing(0);
+        northBtn.classList.add('active-lock');
+        showNotify("NORD BLOCAT");
+      }
+    } else {
+      setTimeout(() => {
+        if (Date.now() - lastTap >= 300 && !isLocked) map.setBearing(0);
+      }, 300);
     }
+    lastTap = now;
+  });
 
-    // 2. Control Rotație
-    let isLocked = true;
-    let lastTap = 0;
-    const northBtn = document.getElementById('north-btn');
+  map.on('rotate', () => {
+    document.getElementById('compass-svg').style.transform = `rotate(${-map.getBearing()}deg)`;
+  });
 
-    northBtn.addEventListener('click', () => {
-        const now = Date.now();
-        if (now - lastTap < 300) {
-            isLocked = !isLocked;
-            if (!isLocked) {
-                map.touchRotate.enable();
-                northBtn.classList.remove('active-lock');
-                showNotify("ROTAȚIE ACTIVĂ");
-            } else {
-                map.touchRotate.disable();
-                map.setBearing(0);
-                northBtn.classList.add('active-lock');
-                showNotify("NORD BLOCAT");
-            }
-        } else {
-            setTimeout(() => {
-                if (Date.now() - lastTap >= 300 && !isLocked) map.setBearing(0);
-            }, 300);
-        }
-        lastTap = now;
+  // 3. Notify
+  function showNotify(text, duration = 2000) {
+    const bar = document.getElementById('top-bar');
+    document.getElementById('status-text').innerText = text;
+    bar.style.opacity = "1";
+    setTimeout(() => { bar.style.opacity = "0"; }, duration);
+  }
+
+  // ---------------------------
+  // 🚍 LIVE VEHICLES (BusMaps backend)
+  // ---------------------------
+  const BACKEND_URL = "https://bus-backend-607g.onrender.com/api/vehicles";
+
+  const POLL_MS = 5000;
+  const ANIM_MS = 4500;
+
+  const vehicleLayer = L.layerGroup().addTo(map);
+  const busMarkers = new Map(); // id -> marker
+  const busState = new Map();   // id -> {lat, lon, ts, speedMps}
+  let lastVehicles = [];
+  let selectedStop = null; // {name, lat, lon}
+
+  function busIcon(line, bearing) {
+    const rot = Number.isFinite(bearing) ? bearing : 0;
+    const txt = (line ?? '').toString().slice(0, 4);
+    return L.divIcon({
+      className: 'bus-icon',
+      html: `<div class="bus-badge" style="transform:rotate(${rot}deg)"><span>${txt}</span></div>`,
+      iconSize: [34, 34],
+      iconAnchor: [17, 17]
     });
+  }
 
-    map.on('rotate', () => {
-        document.getElementById('compass-svg').style.transform = `rotate(${-map.getBearing()}deg)`;
-    });
+  function toRad(x){ return x * Math.PI / 180; }
+  function haversineMeters(lat1, lon1, lat2, lon2){
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat/2)**2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+  function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+  function formatEta(seconds){
+    if (!Number.isFinite(seconds)) return "—";
+    const s = Math.max(0, Math.round(seconds));
+    if (s < 60) return `${s} sec`;
+    const m = Math.round(s/60);
+    return `${m} min`;
+  }
 
-    // 3. UI Notify Slim
-    function showNotify(text, duration = 2000) {
-        const bar = document.getElementById('top-bar');
-        document.getElementById('status-text').innerText = text;
-        bar.style.opacity = "1";
-        setTimeout(() => { bar.style.opacity = "0"; }, duration);
+  function animateMarkerTo(marker, fromLL, toLL, durationMs){
+    const start = performance.now();
+    const fromLat = fromLL.lat ?? fromLL[0];
+    const fromLng = fromLL.lng ?? fromLL[1];
+    const toLat   = toLL.lat   ?? toLL[0];
+    const toLng   = toLL.lng   ?? toLL[1];
+
+    const d = haversineMeters(fromLat, fromLng, toLat, toLng);
+    if (d < 2) { marker.setLatLng([toLat, toLng]); return; }
+
+    if (marker._animFrame) cancelAnimationFrame(marker._animFrame);
+
+    function step(now){
+      const t = clamp((now - start) / durationMs, 0, 1);
+      const ease = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2;
+
+      const lat = fromLat + (toLat - fromLat) * ease;
+      const lng = fromLng + (toLng - fromLng) * ease;
+
+      marker.setLatLng([lat, lng]);
+
+      if (t < 1) marker._animFrame = requestAnimationFrame(step);
     }
+    marker._animFrame = requestAnimationFrame(step);
+  }
 
-    // ---------------------------
-    // 🚍 LIVE VEHICLES (BusMaps via backend)
-    // ---------------------------
-    const BACKEND_URL = "https://bus-backend-607g.onrender.com/api/vehicles";
-
-    // marker cache: id -> marker (smooth)
-    const busMarkers = new Map();
-    const vehicleLayer = L.layerGroup().addTo(map);
-
-    function busIcon(line, bearing) {
-        const rot = Number.isFinite(bearing) ? bearing : 0;
-        const txt = (line ?? '').toString().slice(0, 4); // scurt
-        return L.divIcon({
-            className: 'bus-icon',
-            html: `<div class="bus-badge" style="transform:rotate(${rot}deg)"><span>${txt}</span></div>`,
-            iconSize: [34, 34],
-            iconAnchor: [17, 17]
-        });
+  function removeMissingBuses(seenIds) {
+    for (const [id, marker] of busMarkers.entries()) {
+      if (!seenIds.has(id)) {
+        vehicleLayer.removeLayer(marker);
+        busMarkers.delete(id);
+      }
     }
+  }
 
-    function updateOrCreateBus(v) {
+  async function loadVehicles() {
+    try {
+      const res = await fetch(BACKEND_URL, { cache: "no-store" });
+      const data = await res.json();
+
+      if (!data || !Array.isArray(data.vehicles)) {
+        showNotify("DATE VEHICULE INVALID", 2500);
+        return;
+      }
+
+      lastVehicles = data.vehicles;
+      const seen = new Set();
+
+      data.vehicles.forEach(v => {
         const id = String(v.id ?? '');
         if (!id || !Number.isFinite(v.lat) || !Number.isFinite(v.lon)) return;
+        seen.add(id);
+
+        // calc speed m/s din doua pozitii consecutive
+        const prev = busState.get(id);
+        let speedMps = prev?.speedMps ?? NaN;
+        const nowTs = Number.isFinite(v.ts) ? v.ts : Date.now()/1000;
+
+        if (prev && Number.isFinite(prev.ts)) {
+          const dt = (nowTs - prev.ts);
+          if (dt > 0.5 && dt < 60) {
+            const dist = haversineMeters(prev.lat, prev.lon, v.lat, v.lon);
+            const raw = dist / dt;
+            speedMps = clamp(raw, 0, 35);
+          }
+        }
+        busState.set(id, { lat: v.lat, lon: v.lon, ts: nowTs, speedMps });
+
+        const label = v.line ? `Linia ${v.line}` : "BUS";
+        const newLatLng = L.latLng(v.lat, v.lon);
 
         const existing = busMarkers.get(id);
-        const latlng = [v.lat, v.lon];
-        const label = v.line ? `Linia ${v.line}` : "BUS";
-
         if (existing) {
-            existing.setLatLng(latlng);
-            existing.setIcon(busIcon(v.line, v.bearing));
-            existing.setTooltipContent(label);
+          const oldLatLng = existing.getLatLng();
+          existing.setIcon(busIcon(v.line, v.bearing));
+          existing.setTooltipContent(label);
+          animateMarkerTo(existing, oldLatLng, newLatLng, ANIM_MS);
         } else {
-            const m = L.marker(latlng, { icon: busIcon(v.line, v.bearing) })
-                .addTo(vehicleLayer)
-                .bindTooltip(label, { direction: "top", offset: [0, -6] });
+          const m = L.marker(newLatLng, { icon: busIcon(v.line, v.bearing) })
+            .addTo(vehicleLayer)
+            .bindTooltip(label, { direction: "top", offset: [0, -6] });
 
-            // click = zoom putin pe bus (nice UX)
-            m.on('click', () => map.flyTo(latlng, Math.max(map.getZoom(), 16), { duration: 0.6 }));
-            busMarkers.set(id, m);
+          m.on('click', () => map.flyTo(newLatLng, Math.max(map.getZoom(), 16), { duration: 0.6 }));
+          busMarkers.set(id, m);
         }
+      });
+
+      removeMissingBuses(seen);
+
+      // daca panel e deschis pe o statie, recalc ETA live
+      if (selectedStop && document.getElementById('panel').classList.contains('open')) {
+        refreshData();
+      }
+
+    } catch (e) {
+      showNotify("EROARE LIVE (BACKEND)", 3500);
     }
+  }
 
-    function removeMissingBuses(seenIds) {
-        for (const [id, marker] of busMarkers.entries()) {
-            if (!seenIds.has(id)) {
-                vehicleLayer.removeLayer(marker);
-                busMarkers.delete(id);
-            }
-        }
-    }
+  setInterval(loadVehicles, POLL_MS);
+  loadVehicles();
 
-    async function loadVehicles() {
-        try {
-            const res = await fetch(BACKEND_URL, { cache: "no-store" });
-            const data = await res.json();
+  // ---------------------------
+  // 🛑 STOPS (OSM via Overpass) + cache
+  // ---------------------------
+  const stopsLayer = L.layerGroup().addTo(map);
 
-            if (!data || !Array.isArray(data.vehicles)) {
-                showNotify("DATE VEHICULE INVALID", 2500);
-                return;
-            }
+  function stopIcon() {
+    return L.divIcon({
+      className: '',
+      html: `<div class="stop-dot"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7]
+    });
+  }
 
-            const seen = new Set();
-            data.vehicles.forEach(v => {
-                const id = String(v.id ?? '');
-                seen.add(id);
-                updateOrCreateBus(v);
-            });
-            removeMissingBuses(seen);
+  function normalizeStopName(name) {
+    return (name || '').trim().replace(/\s+/g, ' ');
+  }
 
-        } catch (e) {
-            showNotify("EROARE LIVE (BACKEND)", 3500);
-        }
-    }
+  async function getStops() {
+    showNotify("ÎNCĂRCARE STAȚII...");
 
-    setInterval(loadVehicles, 5000);
-    loadVehicles();
+    const cacheKey = "cj_stops_v3";
+    const cacheTsKey = "cj_stops_v3_ts";
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000;
 
-    // ---------------------------
-    // 🛑 STOPS (OSM via Overpass) - mai “reale” ca selectie si cache
-    // ---------------------------
-    const stopsLayer = L.layerGroup().addTo(map);
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      const cachedTs = Number(localStorage.getItem(cacheTsKey) || 0);
+      if (cached && (now - cachedTs) < maxAge) {
+        const data = JSON.parse(cached);
+        renderStops(data);
+        showNotify("STAȚII (CACHE) OK");
+        return;
+      }
+    } catch (_) {}
 
-    function stopIcon() {
-        return L.divIcon({
-            className: '',
-            html: `<div class="stop-dot"></div>`,
-            iconSize: [14, 14],
-            iconAnchor: [7, 7]
-        });
-    }
-
-    function normalizeStopName(name) {
-        return (name || '').trim().replace(/\s+/g, ' ');
-    }
-
-    async function getStops() {
-        showNotify("ÎNCĂRCARE STAȚII...");
-
-        // 1) cache in localStorage (24h)
-        const cacheKey = "cj_stops_v2";
-        const cacheTsKey = "cj_stops_v2_ts";
-        const now = Date.now();
-        const maxAge = 24 * 60 * 60 * 1000;
-
-        try {
-            const cached = localStorage.getItem(cacheKey);
-            const cachedTs = Number(localStorage.getItem(cacheTsKey) || 0);
-            if (cached && (now - cachedTs) < maxAge) {
-                const data = JSON.parse(cached);
-                renderStops(data);
-                showNotify("STAȚII (CACHE) OK");
-                return;
-            }
-        } catch (_) {}
-
-        // 2) query Overpass mai bun:
-        // - public_transport=platform (platforme statii)
-        // - highway=bus_stop (semne)
-        // luam doar in bbox Cluj
-        const query = `
+    const query = `
 [out:json][timeout:25];
 (
   node["public_transport"="platform"]["name"](46.70,23.40,46.85,23.70);
   node["highway"="bus_stop"]["name"](46.70,23.40,46.85,23.70);
 );
 out body;
-        `.trim();
+    `.trim();
 
-        const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
+    const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
 
-        try {
-            const res = await fetch(url);
-            if(!res.ok) throw new Error("overpass bad");
+    try {
+      const res = await fetch(url);
+      if(!res.ok) throw new Error("overpass bad");
+      const data = await res.json();
 
-            const data = await res.json();
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+        localStorage.setItem(cacheTsKey, String(Date.now()));
+      } catch (_) {}
 
-            // salveaza cache
-            try {
-                localStorage.setItem(cacheKey, JSON.stringify(data));
-                localStorage.setItem(cacheTsKey, String(Date.now()));
-            } catch (_) {}
-
-            renderStops(data);
-            showNotify("STAȚII OK");
-        } catch(e) {
-            showNotify("EROARE STAȚII (REFRESH)", 6000);
-        }
+      renderStops(data);
+      showNotify("STAȚII OK");
+    } catch(e) {
+      showNotify("EROARE STAȚII (REFRESH)", 6000);
     }
+  }
 
-    function renderStops(data) {
-        stopsLayer.clearLayers();
+  function renderStops(data) {
+    stopsLayer.clearLayers();
+    const seen = new Set();
 
-        // dedup aproximativ (multe sunt duplicate)
-        const seen = new Set();
+    (data.elements || []).forEach(s => {
+      const name = normalizeStopName(s.tags?.name || "");
+      if (!name) return;
 
-        (data.elements || []).forEach(s => {
-            const name = normalizeStopName(s.tags?.name || "");
-            if (!name) return;
+      const key = `${name}_${s.lat.toFixed(4)}_${s.lon.toFixed(4)}`;
+      if (seen.has(key)) return;
+      seen.add(key);
 
-            // cheie dedup = nume + grid (rotunjire)
-            const key = `${name}_${s.lat.toFixed(4)}_${s.lon.toFixed(4)}`;
-            if (seen.has(key)) return;
-            seen.add(key);
+      const marker = L.marker([s.lat, s.lon], { icon: stopIcon() }).addTo(stopsLayer);
+      const hit = L.circleMarker([s.lat, s.lon], { radius: 22, stroke: false, fillOpacity: 0, interactive: true }).addTo(stopsLayer);
 
-            const marker = L.marker([s.lat, s.lon], { icon: stopIcon() })
-                .addTo(stopsLayer);
-
-            // click hitbox mare
-            const hit = L.circleMarker([s.lat, s.lon], { radius: 22, stroke: false, fillOpacity: 0, interactive: true })
-                .addTo(stopsLayer);
-
-            hit.on('click', () => openPanel(name));
-            marker.on('click', () => openPanel(name));
-        });
-    }
-
-    function openPanel(name) {
-        document.getElementById('p-name').innerText = name;
-        refreshData(); // inca mock; ETA real = necesita GTFS/GTFS-RT
-        document.getElementById('panel').classList.add('open');
-        document.getElementById('controls').classList.add('up');
-    }
-
-    // încă mock în panel (ETA real -> Tranzy/CTP GTFS-RT)
-    function refreshData() {
-        const list = document.getElementById('bus-list');
-        list.style.opacity = "0.3";
-        setTimeout(() => {
-            const lines = ["24B", "M26", "6", "9", "30", "M21", "25", "3"];
-            list.innerHTML = lines.sort(() => 0.5 - Math.random()).slice(0, 3).map(l => `
-                <div class="bus-item">
-                    <span class="line">${l}</span>
-                    <span class="eta">în ${Math.floor(Math.random()*15)+2} min</span>
-                </div>
-            `).join('');
-            list.style.opacity = "1";
-        }, 250);
-    }
-
-    function closePanel() {
-        document.getElementById('panel').classList.remove('open');
-        document.getElementById('controls').classList.remove('up');
-    }
-
-    function locateMe() { map.locate({setView: false, enableHighAccuracy: true}); }
-    map.on('locationfound', e => {
-        map.flyTo(e.latlng, 17, { duration: 1.5 });
-        L.circleMarker(e.latlng, { radius: 8, fillColor: '#007AFF', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+      marker.on('click', () => openPanel(name, s.lat, s.lon));
+      hit.on('click', () => openPanel(name, s.lat, s.lon));
     });
+  }
 
-    locateMe();
-    getStops();
+  function openPanel(name, lat, lon) {
+    selectedStop = { name, lat, lon };
+    document.getElementById('p-name').innerText = name;
+
+    refreshData();
+
+    document.getElementById('panel').classList.add('open');
+    document.getElementById('controls').classList.add('up');
+  }
+
+  // ✅ ETA aproximativ la stație (top 6)
+  function refreshData() {
+    const list = document.getElementById('bus-list');
+
+    if (!selectedStop) {
+      list.innerHTML = `<div class="eta">Selectează o stație.</div>`;
+      return;
+    }
+
+    const { lat, lon } = selectedStop;
+
+    const arr = Array.isArray(lastVehicles) ? lastVehicles : [];
+    if (arr.length === 0) {
+      list.innerHTML = `<div class="eta">Nu sunt date live încă.</div>`;
+      return;
+    }
+
+    const candidates = arr
+      .filter(v => Number.isFinite(v.lat) && Number.isFinite(v.lon))
+      .map(v => {
+        const id = String(v.id ?? '');
+        const distM = haversineMeters(lat, lon, v.lat, v.lon);
+
+        const st = busState.get(id);
+        let speed = st?.speedMps;
+
+        // fallback realist in oras: ~25 km/h
+        if (!Number.isFinite(speed) || speed < 1) speed = 7;
+
+        let etaSec = distM / speed;
+        etaSec = clamp(etaSec, 15, 60 * 60);
+
+        return { line: v.line || "BUS", id, distM, etaSec };
+      })
+      .sort((a,b) => a.etaSec - b.etaSec)
+      .slice(0, 6);
+
+    if (candidates.length === 0) {
+      list.innerHTML = `<div class="eta">Nu am vehicule valide.</div>`;
+      return;
+    }
+
+    list.innerHTML = candidates.map(x => `
+      <div class="bus-item">
+        <span class="line">${x.line}</span>
+        <span class="eta">${formatEta(x.etaSec)} · ${(x.distM/1000).toFixed(2)} km</span>
+      </div>
+    `).join('');
+  }
+
+  function closePanel() {
+    selectedStop = null;
+    document.getElementById('panel').classList.remove('open');
+    document.getElementById('controls').classList.remove('up');
+  }
+
+  // GPS
+  function locateMe() { map.locate({setView: false, enableHighAccuracy: true}); }
+  map.on('locationfound', e => {
+    map.flyTo(e.latlng, 17, { duration: 1.5 });
+    L.circleMarker(e.latlng, { radius: 8, fillColor: '#007AFF', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+  });
+
+  locateMe();
+  getStops();
 </script>
 </body>
 </html>
+
 

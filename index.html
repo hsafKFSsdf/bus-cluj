@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>bus-cluj-v16</title>
+  <title>bus-cluj-v17</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
@@ -27,6 +27,42 @@
     }
     #status-text { font-size: 9px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; color: #eee; }
 
+    /* Filtru linie */
+    #line-filter {
+      position: fixed;
+      top: 30px;
+      left: 12px;
+      right: 12px;
+      z-index: 3500;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      pointer-events: auto;
+    }
+    #line-input {
+      flex: 1;
+      height: 42px;
+      border-radius: 12px;
+      border: 1px solid #222;
+      background: rgba(10,10,10,0.92);
+      color: #fff;
+      padding: 0 14px;
+      font-weight: 800;
+      letter-spacing: .4px;
+      text-transform: uppercase;
+      outline: none;
+    }
+    #line-clear {
+      width: 42px; height: 42px;
+      border-radius: 12px;
+      border: 1px solid #222;
+      background: rgba(10,10,10,0.92);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
     /* Controale */
     .ui-group {
       position: fixed; bottom: 25px; right: 20px;
@@ -49,16 +85,17 @@
       background: #080808; border-top: 1px solid #222;
       padding: 25px; transform: translateY(100%);
       transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: 2000; height: 30vh; overflow-y: auto;
+      z-index: 2000; height: 32vh; overflow-y: auto;
     }
     #panel.open { transform: translateY(0); }
-    .st-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-    .st-name { font-size: 14px; font-weight: 800; text-transform: uppercase; color: #fff; }
+    .st-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+    .st-name { font-size: 14px; font-weight: 900; text-transform: uppercase; color: #fff; }
     .refresh-btn { font-size: 10px; color: var(--accent); cursor: pointer; border: 1px solid var(--accent); padding: 5px 10px; margin-top: 8px; display: inline-block; }
     .close-icon { font-size: 32px; color: #333; cursor: pointer; line-height: 24px; }
     .bus-item { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid #151515; }
     .line { color: var(--accent); font-weight: 900; font-size: 18px; }
-    .eta { color: #777; font-size: 13px; }
+    .eta { color: #777; font-size: 13px; white-space: nowrap; }
+    .small { color:#666; font-size: 12px; margin-top: 8px; }
 
     /* 🚍 BUS ICON */
     .bus-icon { }
@@ -84,6 +121,13 @@
 <body>
 
 <div id="top-bar"><span id="status-text">NOTIFICARE</span></div>
+
+<!-- Filtru linie -->
+<div id="line-filter">
+  <input id="line-input" placeholder="FILTRU LINIE (ex: M21 / M26 / 24B) — gol = toate" />
+  <button id="line-clear" title="Clear">×</button>
+</div>
+
 <div id="map"></div>
 
 <div class="ui-group" id="controls">
@@ -99,6 +143,7 @@
     <div>
       <div class="st-name" id="p-name">STATION</div>
       <div class="refresh-btn" onclick="refreshData()">REÎNCARCĂ</div>
+      <div class="small" id="p-sub"></div>
     </div>
     <div class="close-icon" onclick="closePanel()">×</div>
   </div>
@@ -109,7 +154,7 @@
 <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 
 <script>
-  // 1. Hărți
+  // 1) Hărți
   const maps = [
     { name: 'Satelit', layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}') },
     { name: 'Street',  layer: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png') },
@@ -133,7 +178,7 @@
     showNotify(maps[currentIdx].name);
   }
 
-  // 2. Rotație
+  // 2) Rotație
   let isLocked = true;
   let lastTap = 0;
   const northBtn = document.getElementById('north-btn');
@@ -164,7 +209,7 @@
     document.getElementById('compass-svg').style.transform = `rotate(${-map.getBearing()}deg)`;
   });
 
-  // 3. Notify
+  // 3) Notify
   function showNotify(text, duration = 2000) {
     const bar = document.getElementById('top-bar');
     document.getElementById('status-text').innerText = text;
@@ -175,20 +220,43 @@
   // ---------------------------
   // 🚍 LIVE VEHICLES (BusMaps backend)
   // ---------------------------
-  const BACKEND_URL = "https://bus-backend-607g.onrender.com/api/vehicles";
+  // 🔥 BBOX MAI MARE ca să prinzi mai multe vehicule (inclusiv M21/M26 dacă erau în afara zonei)
+  const BBOX_BIG = "46.60,23.25,46.95,23.85";
+  const BACKEND_URL = "https://bus-backend-607g.onrender.com/api/vehicles?bbox=" + encodeURIComponent(BBOX_BIG);
 
   const POLL_MS = 5000;
   const ANIM_MS = 4500;
 
   const vehicleLayer = L.layerGroup().addTo(map);
   const busMarkers = new Map(); // id -> marker
-  const busState = new Map();   // id -> {lat, lon, ts, speedMps}
+  const busState = new Map();   // id -> {lat, lon, ts, speedMps, bearing, line}
   let lastVehicles = [];
   let selectedStop = null; // {name, lat, lon}
 
+  // Filtru linie
+  let filterLine = "";
+  const lineInput = document.getElementById('line-input');
+  const lineClear = document.getElementById('line-clear');
+
+  function normalizeLine(x){
+    return (x ?? "").toString().trim().toUpperCase();
+  }
+  function setFilterLine(val){
+    filterLine = normalizeLine(val);
+    if (filterLine) showNotify("FILTRU: " + filterLine, 1800);
+    else showNotify("FILTRU: TOATE", 1200);
+    // refiltrăm imediat pe ce avem
+    renderVehiclesFromCache();
+    // dacă panel deschis, recalc și acolo
+    if (selectedStop && document.getElementById('panel').classList.contains('open')) refreshData();
+  }
+
+  lineInput.addEventListener('input', (e) => setFilterLine(e.target.value));
+  lineClear.addEventListener('click', () => { lineInput.value = ""; setFilterLine(""); });
+
   function busIcon(line, bearing) {
     const rot = Number.isFinite(bearing) ? bearing : 0;
-    const txt = (line ?? '').toString().slice(0, 4);
+    const txt = normalizeLine(line).slice(0, 4);
     return L.divIcon({
       className: 'bus-icon',
       html: `<div class="bus-badge" style="transform:rotate(${rot}deg)"><span>${txt}</span></div>`,
@@ -197,7 +265,11 @@
     });
   }
 
+  // --- Geo helpers
   function toRad(x){ return x * Math.PI / 180; }
+  function toDeg(x){ return x * 180 / Math.PI; }
+  function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+
   function haversineMeters(lat1, lon1, lat2, lon2){
     const R = 6371000;
     const dLat = toRad(lat2 - lat1);
@@ -207,7 +279,23 @@
       Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
     return 2 * R * Math.asin(Math.sqrt(a));
   }
-  function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+
+  function bearingDeg(lat1, lon1, lat2, lon2){
+    // bearing from point1 -> point2 (0..360)
+    const φ1 = toRad(lat1), φ2 = toRad(lat2);
+    const λ1 = toRad(lon1), λ2 = toRad(lon2);
+    const y = Math.sin(λ2-λ1) * Math.cos(φ2);
+    const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-λ1);
+    const θ = Math.atan2(y, x);
+    return (toDeg(θ) + 360) % 360;
+  }
+
+  function angleDiff(a, b){
+    // smallest diff between angles (0..180)
+    let d = Math.abs((a - b) % 360);
+    return d > 180 ? 360 - d : d;
+  }
+
   function formatEta(seconds){
     if (!Number.isFinite(seconds)) return "—";
     const s = Math.max(0, Math.round(seconds));
@@ -216,6 +304,7 @@
     return `${m} min`;
   }
 
+  // Animare marker (mișcare fluidă)
   function animateMarkerTo(marker, fromLL, toLL, durationMs){
     const start = performance.now();
     const fromLat = fromLL.lat ?? fromLL[0];
@@ -251,6 +340,44 @@
     }
   }
 
+  function passesLineFilter(line){
+    if (!filterLine) return true;
+    return normalizeLine(line) === filterLine;
+  }
+
+  function renderVehiclesFromCache(){
+    // Reaplică filtrul fără să refaci fetch
+    const seen = new Set();
+    lastVehicles.forEach(v => {
+      const id = String(v.id ?? '');
+      if (!id) return;
+
+      const line = v.line || "";
+      if (!passesLineFilter(line)) {
+        // dacă există marker, îl scoatem
+        const mk = busMarkers.get(id);
+        if (mk) {
+          vehicleLayer.removeLayer(mk);
+          busMarkers.delete(id);
+        }
+        return;
+      }
+
+      seen.add(id);
+      // dacă marker-ul nu există, îl creăm la poziția curentă
+      if (!busMarkers.has(id) && Number.isFinite(v.lat) && Number.isFinite(v.lon)) {
+        const newLatLng = L.latLng(v.lat, v.lon);
+        const label = line ? `Linia ${line}` : "BUS";
+        const m = L.marker(newLatLng, { icon: busIcon(line, v.bearing) })
+          .addTo(vehicleLayer)
+          .bindTooltip(label, { direction: "top", offset: [0, -6] });
+        m.on('click', () => map.flyTo(newLatLng, Math.max(map.getZoom(), 16), { duration: 0.6 }));
+        busMarkers.set(id, m);
+      }
+    });
+    // nu ștergem restul aici; only remove handled above
+  }
+
   async function loadVehicles() {
     try {
       const res = await fetch(BACKEND_URL, { cache: "no-store" });
@@ -267,9 +394,11 @@
       data.vehicles.forEach(v => {
         const id = String(v.id ?? '');
         if (!id || !Number.isFinite(v.lat) || !Number.isFinite(v.lon)) return;
-        seen.add(id);
 
-        // calc speed m/s din doua pozitii consecutive
+        const line = v.line || "";
+        const bearing = Number.isFinite(v.bearing) ? v.bearing : null;
+
+        // speed m/s din două poziții consecutive
         const prev = busState.get(id);
         let speedMps = prev?.speedMps ?? NaN;
         const nowTs = Number.isFinite(v.ts) ? v.ts : Date.now()/1000;
@@ -282,19 +411,32 @@
             speedMps = clamp(raw, 0, 35);
           }
         }
-        busState.set(id, { lat: v.lat, lon: v.lon, ts: nowTs, speedMps });
 
-        const label = v.line ? `Linia ${v.line}` : "BUS";
+        busState.set(id, { lat: v.lat, lon: v.lon, ts: nowTs, speedMps, bearing, line });
+
+        // dacă nu trece filtrul de linie -> nu îl desenăm
+        if (!passesLineFilter(line)) {
+          const mk = busMarkers.get(id);
+          if (mk) {
+            vehicleLayer.removeLayer(mk);
+            busMarkers.delete(id);
+          }
+          return;
+        }
+
+        seen.add(id);
+
+        const label = line ? `Linia ${line}` : "BUS";
         const newLatLng = L.latLng(v.lat, v.lon);
 
         const existing = busMarkers.get(id);
         if (existing) {
           const oldLatLng = existing.getLatLng();
-          existing.setIcon(busIcon(v.line, v.bearing));
+          existing.setIcon(busIcon(line, bearing));
           existing.setTooltipContent(label);
           animateMarkerTo(existing, oldLatLng, newLatLng, ANIM_MS);
         } else {
-          const m = L.marker(newLatLng, { icon: busIcon(v.line, v.bearing) })
+          const m = L.marker(newLatLng, { icon: busIcon(line, bearing) })
             .addTo(vehicleLayer)
             .bindTooltip(label, { direction: "top", offset: [0, -6] });
 
@@ -303,9 +445,10 @@
         }
       });
 
+      // șterge vehicule dispărute (doar cele care erau desenate)
       removeMissingBuses(seen);
 
-      // daca panel e deschis pe o statie, recalc ETA live
+      // dacă panel e deschis pe o stație, recalc ETA live
       if (selectedStop && document.getElementById('panel').classList.contains('open')) {
         refreshData();
       }
@@ -339,8 +482,8 @@
   async function getStops() {
     showNotify("ÎNCĂRCARE STAȚII...");
 
-    const cacheKey = "cj_stops_v3";
-    const cacheTsKey = "cj_stops_v3_ts";
+    const cacheKey = "cj_stops_v4";
+    const cacheTsKey = "cj_stops_v4_ts";
     const now = Date.now();
     const maxAge = 24 * 60 * 60 * 1000;
 
@@ -355,6 +498,7 @@
       }
     } catch (_) {}
 
+    // bbox pt stații poate rămâne Cluj (nu trebuie enorm)
     const query = `
 [out:json][timeout:25];
 (
@@ -413,11 +557,15 @@ out body;
     document.getElementById('controls').classList.add('up');
   }
 
-  // ✅ ETA aproximativ la stație (top 6)
+  // ✅ ETA aprox + distanță + filtrare după direcție (bearing)
+  // Ideea: bus trebuie să “privească” spre stație ca să-l considerăm relevant.
+  // Dacă nu avem bearing, îl lăsăm (nu îl filtrăm).
   function refreshData() {
     const list = document.getElementById('bus-list');
+    const sub = document.getElementById('p-sub');
 
     if (!selectedStop) {
+      sub.innerText = "";
       list.innerHTML = `<div class="eta">Selectează o stație.</div>`;
       return;
     }
@@ -426,32 +574,66 @@ out body;
 
     const arr = Array.isArray(lastVehicles) ? lastVehicles : [];
     if (arr.length === 0) {
+      sub.innerText = "";
       list.innerHTML = `<div class="eta">Nu sunt date live încă.</div>`;
       return;
     }
 
-    const candidates = arr
+    // doar vehiculele care trec filtrul de linie (dacă e setat)
+    const filtered = arr.filter(v => passesLineFilter(v.line || ""));
+
+    // parametri pentru "vine spre stație"
+    const MAX_DIR_DIFF = 70;   // grade
+    const MAX_DIST_M   = 8000; // ignorăm tot ce e mai departe de 8km pentru listă
+
+    const candidates = filtered
       .filter(v => Number.isFinite(v.lat) && Number.isFinite(v.lon))
       .map(v => {
         const id = String(v.id ?? '');
         const distM = haversineMeters(lat, lon, v.lat, v.lon);
 
+        // viteza estimată; fallback dacă nu avem
         const st = busState.get(id);
         let speed = st?.speedMps;
-
-        // fallback realist in oras: ~25 km/h
-        if (!Number.isFinite(speed) || speed < 1) speed = 7;
+        if (!Number.isFinite(speed) || speed < 1) speed = 7; // ~25 km/h fallback
 
         let etaSec = distM / speed;
         etaSec = clamp(etaSec, 15, 60 * 60);
 
-        return { line: v.line || "BUS", id, distM, etaSec };
+        // direcția bus -> stație vs bearing bus
+        const toStop = bearingDeg(v.lat, v.lon, lat, lon);
+        const b = Number.isFinite(v.bearing) ? v.bearing : null;
+
+        let dirOk = true;
+        let dirDiff = null;
+
+        if (Number.isFinite(b)) {
+          dirDiff = angleDiff(b, toStop);
+          dirOk = dirDiff <= MAX_DIR_DIFF;
+        }
+
+        return {
+          line: normalizeLine(v.line || "BUS"),
+          id,
+          distM,
+          etaSec,
+          dirOk,
+          dirDiff
+        };
       })
+      .filter(x => x.distM <= MAX_DIST_M)      // să nu-ți umple lista cu chestii foarte departe
+      .filter(x => x.dirOk)                    // 🔥 doar cele care “vin spre stație”
       .sort((a,b) => a.etaSec - b.etaSec)
-      .slice(0, 6);
+      .slice(0, 8);
+
+    const totalShown = candidates.length;
+    const totalAll = filtered.length;
+
+    sub.innerText =
+      `Afișate: ${totalShown} | Vehicule (filtru): ${totalAll} | Direcție: ≤${MAX_DIR_DIFF}° | BBOX: mare`;
 
     if (candidates.length === 0) {
-      list.innerHTML = `<div class="eta">Nu am vehicule valide.</div>`;
+      list.innerHTML = `<div class="eta">Nu am găsit autobuze care vin spre stație (în ${Math.round(MAX_DIST_M/1000)} km).</div>`;
       return;
     }
 
@@ -481,5 +663,7 @@ out body;
 </script>
 </body>
 </html>
+
+
 
 

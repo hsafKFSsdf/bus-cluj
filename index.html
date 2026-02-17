@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cluj Bus Live</title>
+    <title>Cluj Bus Live - Demo</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -11,60 +11,76 @@
         :root {
             --primary: #4CAF50;
             --bg: #0a0a0a;
-            --panel-bg: rgba(25, 25, 25, 0.98);
+            --panel-bg: rgba(20, 20, 20, 0.95);
+            --danger: #e31e24;
         }
 
         body, html { margin: 0; padding: 0; background: var(--bg); font-family: -apple-system, sans-serif; color: white; overflow: hidden; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
 
-        /* Controale Dreapta Jos */
+        /* Controale UX Dreapta Jos */
         .controls-container {
-            position: fixed;
-            bottom: 20px;
-            right: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            z-index: 1100;
-            transition: bottom 0.4s;
+            position: fixed; bottom: 30px; right: 20px;
+            display: flex; flex-direction: column; gap: 15px;
+            z-index: 1100; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        /* Ridicăm butoanele când panoul e deschis */
-        .controls-container.shifted { bottom: 42vh; }
+        .controls-container.shifted { bottom: 48vh; }
 
         .fab {
-            width: 50px; height: 50px;
-            background: #222; border: 1px solid #444; border-radius: 12px;
+            width: 56px; height: 56px;
+            background: #222; border: 1px solid #444; border-radius: 16px;
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            cursor: pointer; fill: white;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+            cursor: pointer; fill: white; active-transform: scale(0.95);
         }
 
-        /* Panou Sosiri */
+        /* Panou Sosiri - Design Modern */
         #arrivals-panel { 
             position: fixed; bottom: 0; left: 0; right: 0; 
-            background: var(--panel-bg); backdrop-filter: blur(20px);
-            padding: 20px; border-radius: 25px 25px 0 0; 
-            transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1); 
+            background: var(--panel-bg); backdrop-filter: blur(25px);
+            padding: 20px; border-radius: 30px 30px 0 0; 
+            transform: translateY(101%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
             z-index: 1200; border-top: 1px solid rgba(255,255,255,0.1);
-            max-height: 40vh; overflow-y: auto;
+            max-height: 45vh; box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
         }
         #arrivals-panel.active { transform: translateY(0); }
 
-        .handle { width: 40px; height: 4px; background: #555; border-radius: 10px; margin: -5px auto 15px; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+        .handle { width: 45px; height: 5px; background: #444; border-radius: 10px; margin: -5px auto 20px; }
         
-        .st-info h2 { margin: 0; font-size: 18px; color: var(--primary); }
-        .st-info span { font-size: 11px; color: #777; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .st-name { font-size: 22px; font-weight: 800; color: white; margin: 0; letter-spacing: -0.5px; }
+        .st-sub { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
 
-        .actions { display: flex; gap: 10px; }
-        .btn-mini { background: #333; border: none; color: white; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: bold; }
+        .refresh-btn { 
+            background: rgba(76, 175, 80, 0.1); border: 1px solid var(--primary); 
+            color: var(--primary); padding: 8px 16px; border-radius: 12px;
+            font-weight: bold; font-size: 13px; cursor: pointer;
+        }
 
-        .bus-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #333; }
-        .bus-badge { background: #e31e24; color: white; width: 45px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; font-weight: bold; }
-        .bus-time { color: var(--primary); font-weight: bold; font-size: 18px; }
+        /* Lista Autobuze */
+        .bus-list { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 30vh; padding-bottom: 20px; }
+        .bus-card { 
+            background: rgba(255,255,255,0.03); padding: 16px; border-radius: 18px;
+            display: flex; justify-content: space-between; align-items: center;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .bus-info-main { display: flex; align-items: center; gap: 15px; }
+        .bus-id { 
+            background: var(--danger); color: white; width: 50px; height: 35px; 
+            display: flex; align-items: center; justify-content: center; 
+            border-radius: 10px; font-weight: 900; font-size: 18px;
+        }
+        .bus-dest { font-size: 14px; font-weight: 600; color: #eee; }
+        .bus-meta { font-size: 11px; color: #666; margin-top: 2px; }
+        
+        .arrival-time { text-align: right; }
+        .time-val { color: var(--primary); font-size: 22px; font-weight: 800; display: block; }
+        .time-unit { font-size: 10px; color: #666; text-transform: uppercase; }
 
-        /* Stil pentru Layers Leaflet mutat în CSS ca să-l putem ascunde/muta */
-        .leaflet-control-layers { display: none; } /* Îl controlăm noi prin butonul FAB */
+        /* Loader animat pentru simulare */
+        .loader { height: 2px; width: 100%; background: #111; position: relative; overflow: hidden; margin-bottom: 15px; display: none; }
+        .loader::after { content: ''; width: 40%; height: 100%; background: var(--primary); position: absolute; animation: load 1.5s infinite linear; }
+        @keyframes load { from { left: -40%; } to { left: 100%; } }
     </style>
 </head>
 <body>
@@ -72,134 +88,130 @@
 <div id="map"></div>
 
 <div class="controls-container" id="ui-controls">
-    <button class="fab" onclick="cycleMaps()">
-        <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+    <button class="fab" onclick="cycleMaps()" title="Schimbă harta">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
     </button>
-    <button class="fab" onclick="goToMyLocation()">
-        <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+    <button class="fab" onclick="goToMyLocation()" title="Locația mea">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
     </button>
 </div>
 
 <div id="arrivals-panel">
-    <div class="handle"></div>
+    <div class="handle" onclick="togglePanel(false)"></div>
+    <div id="sim-loader" class="loader"></div>
     <div class="header">
-        <div class="st-info">
-            <h2 id="st-name">Stație</h2>
-            <span id="st-id">ID: ---</span>
+        <div>
+            <h1 class="st-name" id="display-st-name">Sora</h1>
+            <div class="st-sub" id="display-st-id">Stația: 148 • Cluj-Napoca</div>
         </div>
-        <div class="actions">
-            <button class="btn-mini" id="refresh-btn">🔄 Refresh</button>
-            <button class="btn-mini" onclick="togglePanel(false)" style="background:#444">✕</button>
-        </div>
+        <button class="refresh-btn" onclick="simulateRefresh()">REFRESH</button>
     </div>
-    <div id="list-container"></div>
+    
+    <div class="bus-list" id="bus-list-container">
+        </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Configurații hărți
-    const layers = {
+    // 1. Inițializare hărți
+    const baseLayers = {
         sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
-        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'),
-        street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+        street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png')
     };
-    
-    let currentLayerIndex = 0;
-    const layerKeys = Object.keys(layers);
 
-    const map = L.map('map', { zoomControl: false, attributionControl: false, layers: [layers.sat] }).setView([46.77, 23.59], 14);
-
+    const map = L.map('map', { zoomControl: false, attributionControl: false, layers: [baseLayers.sat] }).setView([46.769, 23.585], 15);
+    let layerIdx = 0;
     function cycleMaps() {
-        map.removeLayer(layers[layerKeys[currentLayerIndex]]);
-        currentLayerIndex = (currentLayerIndex + 1) % layerKeys.length;
-        map.addLayer(layers[layerKeys[currentLayerIndex]]);
+        const keys = Object.keys(baseLayers);
+        map.removeLayer(baseLayers[keys[layerIdx]]);
+        layerIdx = (layerIdx + 1) % keys.length;
+        map.addLayer(baseLayers[keys[layerIdx]]);
     }
 
-    // Locație
-    let userLatLng = null;
-    const userMarker = L.circleMarker([0,0], { radius: 8, color: '#fff', fillColor: '#007AFF', fillOpacity: 1, weight: 3 }).addTo(map);
+    // 2. Locație utilizator
+    let myLoc = null;
+    const marker = L.circleMarker([0,0], { radius: 9, color: '#fff', fillColor: '#007AFF', fillOpacity: 1, weight: 3 }).addTo(map);
     map.locate({watch: true, enableHighAccuracy: true});
-    map.on('locationfound', e => { userLatLng = e.latlng; userMarker.setLatLng(e.latlng); });
+    map.on('locationfound', e => { myLoc = e.latlng; marker.setLatLng(e.latlng); });
+    function goToMyLocation() { myLoc ? map.flyTo(myLoc, 17) : alert("Se caută semnal GPS..."); }
 
-    function goToMyLocation() { userLatLng ? map.flyTo(userLatLng, 17) : alert("GPS-ul se încarcă..."); }
-
-    // Stații (Backup extins)
-    const stations = [
-        {stopId: "148", stopName: "Sora", stopLat: 46.7719, stopLon: 23.5894},
-        {stopId: "143", stopName: "Memorandumului", stopLat: 46.7695, stopLon: 23.5855},
-        {stopId: "512", stopName: "Florești Primărie", stopLat: 46.7454, stopLon: 23.4832},
-        {stopId: "481", stopName: "Vivo", stopLat: 46.7512, stopLon: 23.5273},
-        {stopId: "100", stopName: "Piața Unirii", stopLat: 46.7705, stopLon: 23.5898},
-        {stopId: "200", stopName: "Gara Mică", stopLat: 46.7845, stopLon: 23.5867}
+    // 3. Baza de date stații (Demo)
+    const demoStations = [
+        { id: '148', name: 'Sora', lat: 46.7719, lng: 23.5894, routes: ['24B', 'M26', '9', '30'] },
+        { id: '143', name: 'Memorandumului', lat: 46.7695, lng: 23.5855, routes: ['1', '6', '25', '9'] },
+        { id: '512', name: 'Primăria Florești', lat: 46.7454, lng: 23.4832, routes: ['M21', 'M26'] },
+        { id: '481', name: 'Vivo Center', lat: 46.7512, lng: 23.5273, routes: ['24B', '28B', 'M26'] },
+        { id: '90', name: 'Piața Cipariu', lat: 46.7675, lng: 23.5962, routes: ['32', '32B', '21'] },
+        { id: '10', name: 'Gara Centrală', lat: 46.7845, lng: 23.5867, routes: ['31', '35', '9', '100'] }
     ];
 
-    function drawStops(list) {
-        list.forEach(s => {
-            L.circleMarker([s.stopLat, s.stopLon], { radius: 6, fillColor: '#4CAF50', color: '#fff', weight: 1, fillOpacity: 0.8 })
-            .addTo(map).on('click', () => openStation(s));
-        });
-    }
-    drawStops(stations);
+    demoStations.forEach(s => {
+        L.circleMarker([s.lat, s.lng], { radius: 7, fillColor: '#4CAF50', color: '#fff', weight: 2, fillOpacity: 0.9 })
+        .addTo(map).on('click', () => openStation(s));
+    });
 
-    // Sosiri & Refresh
-    let currentStation = null;
+    // 4. Logica de simulare
+    let activeStation = null;
 
     function openStation(s) {
-        currentStation = s;
-        document.getElementById('st-name').innerText = s.stopName;
-        document.getElementById('st-id').innerText = `ID: ${s.stopId}`;
+        activeStation = s;
+        document.getElementById('display-st-name').innerText = s.name;
+        document.getElementById('display-st-id').innerText = `ID: ${s.id} • Cluj-Metropolitan`;
         togglePanel(true);
-        fetchData(s.stopId);
+        simulateRefresh();
     }
 
-    document.getElementById('refresh-btn').onclick = () => currentStation && fetchData(currentStation.stopId);
-
-    async function fetchData(id) {
-        const list = document.getElementById('list-container');
-        list.innerHTML = '<div class="status-msg">Se actualizează...</div>';
+    function simulateRefresh() {
+        const loader = document.getElementById('sim-loader');
+        const container = document.getElementById('bus-list-container');
         
-        try {
-            const res = await fetch(`/api/arrivals?id=${id}`);
-            const realData = await res.json();
+        loader.style.display = 'block';
+        container.style.opacity = '0.5';
+
+        setTimeout(() => {
+            loader.style.display = 'none';
+            container.style.opacity = '1';
             
-            if (realData && realData.length > 0) {
-                renderBuses(realData);
-            } else {
-                throw new Error("No data");
-            }
-        } catch (e) {
-            // SIMULARE DATE RANDOM (GTFS TEST)
-            const mockBuses = [
-                { routeShortName: '24B', arrivalMinutes: Math.floor(Math.random() * 10) + 1 },
-                { routeShortName: 'M26', arrivalMinutes: Math.floor(Math.random() * 15) + 5 },
-                { routeShortName: '9', arrivalMinutes: Math.floor(Math.random() * 20) + 10 }
-            ];
-            setTimeout(() => renderBuses(mockBuses), 500);
-        }
+            const buses = activeStation.routes.map(r => ({
+                line: r,
+                time: Math.floor(Math.random() * 15) + 1,
+                dest: getDestination(r)
+            })).sort((a,b) => a.time - b.time);
+
+            container.innerHTML = buses.map(b => `
+                <div class="bus-card">
+                    <div class="bus-info-main">
+                        <div class="bus-id">${b.line}</div>
+                        <div>
+                            <div class="bus-dest">${b.dest}</div>
+                            <div class="bus-meta">Low floor • Live GPS</div>
+                        </div>
+                    </div>
+                    <div class="arrival-time">
+                        <span class="time-val">${b.time}</span>
+                        <span class="time-unit">minute</span>
+                    </div>
+                </div>
+            `).join('');
+        }, 800);
     }
 
-    function renderBuses(data) {
-        const list = document.getElementById('list-container');
-        list.innerHTML = data.map(bus => `
-            <div class="bus-item">
-                <div class="bus-badge">${bus.routeShortName}</div>
-                <div class="bus-time">${bus.arrivalMinutes} min</div>
-            </div>
-        `).join('');
+    function getDestination(line) {
+        if(line.startsWith('M')) return "Cetatea Fetei (Florești)";
+        if(line === '24B') return "Cartier Gheorgheni";
+        if(line === '100') return "Aeroport International";
+        return "Cartier Mănăștur";
     }
 
     function togglePanel(show) {
-        const panel = document.getElementById('arrivals-panel');
-        const controls = document.getElementById('ui-controls');
-        if(show) {
-            panel.classList.add('active');
-            controls.classList.add('shifted');
-        } else {
-            panel.classList.remove('active');
-            controls.classList.remove('shifted');
-        }
+        const p = document.getElementById('arrivals-panel');
+        const c = document.getElementById('ui-controls');
+        p.classList.toggle('active', show);
+        c.classList.toggle('shifted', show);
     }
 </script>
 </body>
 </html>
+
 

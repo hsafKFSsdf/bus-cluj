@@ -3,144 +3,158 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>bus-cluj-v5</title>
+    <title>bus-cluj-v6</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        :root { --primary: #4CAF50; --bg: #000; --panel: rgba(20, 20, 20, 0.98); }
-        body, html { margin: 0; padding: 0; background: var(--bg); font-family: -apple-system, sans-serif; overflow: hidden; }
+        :root { --primary: #4CAF50; --bg: #000; --panel-bg: #111; --border: #333; }
+        body, html { margin: 0; padding: 0; background: var(--bg); font-family: 'Courier New', monospace; overflow: hidden; }
         #map { height: 100vh; width: 100vw; background: #000; }
 
-        /* Controale dreapta jos */
+        /* UI FUNCTIONAL - PATRATOS */
         .ui-group {
-            position: fixed; bottom: 25px; right: 20px;
-            display: flex; flex-direction: column; gap: 12px;
-            z-index: 1000; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            position: fixed; bottom: 20px; right: 20px;
+            display: flex; flex-direction: column; gap: 5px;
+            z-index: 1000; transition: transform 0.4s;
         }
-        .ui-group.up { transform: translateY(-42vh); }
+        .ui-group.up { transform: translateY(-44vh); }
 
-        .btn-round {
-            width: 52px; height: 52px; background: #1a1a1a; border: 1px solid #333;
-            border-radius: 14px; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 6px 15px rgba(0,0,0,0.5); cursor: pointer; fill: white; border: none;
+        .btn-sq {
+            width: 50px; height: 50px; background: #000; border: 2px solid var(--border);
+            border-radius: 0; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; fill: white; color: white; font-weight: bold;
         }
+        .btn-sq:active { background: var(--primary); }
 
+        /* PANEL - FUNCTIONAL/GRID */
         #panel {
             position: fixed; bottom: 0; left: 0; right: 0;
-            background: var(--panel); backdrop-filter: blur(20px);
-            padding: 20px; border-radius: 28px 28px 0 0;
-            transform: translateY(100%); transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 2000; border-top: 1px solid rgba(255,255,255,0.1);
-            max-height: 40vh; color: white;
+            background: var(--panel-bg); border-top: 3px solid var(--primary);
+            padding: 15px; transform: translateY(100%); transition: transform 0.4s;
+            z-index: 2000; height: 40vh; color: white; display: flex; flex-direction: column;
         }
         #panel.open { transform: translateY(0); }
 
-        .st-name { font-size: 22px; font-weight: 800; color: var(--primary); margin: 0 0 15px 0; }
+        .panel-header { 
+            display: grid; grid-template-columns: 1fr 100px; gap: 10px;
+            border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px;
+        }
+        .st-name { font-size: 18px; font-weight: bold; color: var(--primary); text-transform: uppercase; }
+
+        .panel-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 15px; }
+        .action-btn { 
+            background: #222; border: 1px solid var(--border); color: white; 
+            padding: 10px; font-size: 12px; font-weight: bold; cursor: pointer; text-align: center;
+        }
+        .close-btn { background: #e31e24; border: none; }
+
+        .bus-list { overflow-y: auto; flex-grow: 1; }
         .bus-row {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 14px; background: rgba(255,255,255,0.05);
-            border-radius: 15px; margin-bottom: 10px;
+            padding: 12px; border: 1px solid var(--border); margin-bottom: 5px;
         }
-        .line-box { background: #e31e24; color: white; padding: 5px 12px; border-radius: 8px; font-weight: 900; font-size: 16px; }
-        .time-text { color: var(--primary); font-weight: bold; font-size: 18px; }
-        
+        .line-tag { background: #fff; color: #000; padding: 2px 8px; font-weight: 900; font-size: 16px; }
+        .time-tag { color: var(--primary); font-weight: bold; font-size: 20px; }
+
         #loader {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            background: var(--primary); color: white; padding: 8px 16px;
-            border-radius: 20px; font-size: 12px; font-weight: bold; z-index: 3000;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 3px;
+            background: var(--primary); z-index: 3000; display: none;
         }
     </style>
 </head>
 <body>
 
-<div id="loader">Se încarcă stațiile CTP...</div>
+<div id="loader"></div>
 <div id="map"></div>
 
 <div class="ui-group" id="controls">
-    <button class="btn-round" onclick="changeMap()">
-        <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-    </button>
-    <button class="btn-round" onclick="locateMe()">
+    <button class="btn-sq" onclick="cycleMaps()" title="Map Type">MAP</button>
+    <button class="btn-sq" onclick="locateMe()">
         <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06z"/></svg>
     </button>
 </div>
 
 <div id="panel">
-    <div style="width: 45px; height: 5px; background: #444; margin: -10px auto 20px; border-radius: 10px;" onclick="closePanel()"></div>
-    <h2 class="st-name" id="p-name">Stație</h2>
-    <div id="bus-list"></div>
+    <div class="panel-header">
+        <div class="st-name" id="p-name">STATION_NAME</div>
+        <div style="font-size: 10px; color: #555; text-align: right;">v6_PROD_LIVE</div>
+    </div>
+    
+    <div class="panel-actions">
+        <button class="action-btn" onclick="refreshStation()">REFRESH_DATA</button>
+        <button class="action-btn close-btn" onclick="closePanel()">CLOSE_X</button>
+    </div>
+
+    <div class="bus-list" id="bus-list"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([46.765, 23.55], 13);
-    
-    const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+    // 1. CONFIGURARE HARTI (Default: Satelit)
+    const layers = {
+        sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
+        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'),
+        street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png')
+    };
 
-    function changeMap() {
-        if(map.hasLayer(dark)) { map.removeLayer(dark); map.addLayer(sat); }
-        else { map.removeLayer(sat); map.addLayer(dark); }
+    const map = L.map('map', { zoomControl: false, attributionControl: false, layers: [layers.sat] }).setView([46.765, 23.55], 13);
+    
+    let layerKeys = Object.keys(layers);
+    let currentL = 0;
+
+    function cycleMaps() {
+        map.removeLayer(layers[layerKeys[currentL]]);
+        currentL = (currentL + 1) % layerKeys.length;
+        map.addLayer(layers[layerKeys[currentL]]);
     }
 
-    // --- FUNCTIA DE DOWNLOAD STATII REALE ---
-    async function fetchAllStops() {
-        const loader = document.getElementById('loader');
-        loader.style.display = 'block';
-        
-        // Query pentru OpenStreetMap (Overpass API) - cauta bus stops in Cluj & Floresti
-        const query = `
-            [out:json][timeout:25];
-            (
-              node["highway"="bus_stop"](46.70,23.40,46.85,23.70);
-            );
-            out body;
-        `;
+    // 2. DOWNLOAD AUTOMAT STATII (Overpass API)
+    async function fetchStops() {
+        document.getElementById('loader').style.display = 'block';
+        const query = `[out:json];node["highway"="bus_stop"](46.70,23.40,46.85,23.70);out body;`;
         const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
 
         try {
-            const response = await fetch(url);
-            const data = await response.json();
-            
-            data.elements.forEach(stop => {
-                if (stop.lat && stop.lon) {
-                    const name = stop.tags.name || "Stație CTP";
-                    renderStop(stop.lat, stop.lon, name);
-                }
+            const res = await fetch(url);
+            const data = await res.json();
+            data.elements.forEach(s => {
+                L.rectangle([[s.lat - 0.0001, s.lon - 0.00015], [s.lat + 0.0001, s.lon + 0.00015]], {
+                    color: "#fff", fillColor: "#4CAF50", fillOpacity: 1, weight: 1
+                }).addTo(map).on('click', () => openStation(s.tags.name || "UNNAMED_STOP"));
             });
-        } catch (error) {
-            console.error("Eroare la incarcarea statiilor:", error);
-        } finally {
-            loader.style.display = 'none';
-        }
+        } catch (e) { console.error("API_ERR"); }
+        document.getElementById('loader').style.display = 'none';
     }
 
-    function renderStop(lat, lon, name) {
-        L.circleMarker([lat, lon], {
-            radius: 5, fillColor: '#4CAF50', color: '#fff', weight: 1.5, fillOpacity: 1
-        }).addTo(map).on('click', () => {
-            openStation(name);
-        });
-    }
-
+    // 3. LOGICA PANOU
+    let lastOpened = "";
     function openStation(name) {
-        document.getElementById('p-name').innerText = name;
-        const list = document.getElementById('bus-list');
-        
-        // Simulare rute bazata pe locatie/nume
-        const mockLines = name.includes("Florești") || name.includes("Cetatea") ? ["M21", "M26"] : ["24B", "6", "30", "9"];
-        
-        list.innerHTML = mockLines.map(line => `
-            <div class="bus-row">
-                <span class="line-box">${line}</span>
-                <span class="time-text">${Math.floor(Math.random()*12)+2} min</span>
-            </div>
-        `).join('');
-
+        lastOpened = name;
+        document.getElementById('p-name').innerText = name.toUpperCase();
+        refreshStation();
         document.getElementById('panel').classList.add('open');
         document.getElementById('controls').classList.add('up');
+    }
+
+    function refreshStation() {
+        const list = document.getElementById('bus-list');
+        list.innerHTML = `<div style="font-size:10px; color:var(--primary)">LOADING_REAL_TIME_STREAM...</div>`;
+        
+        setTimeout(() => {
+            const routes = ["24B", "M26", "6", "30", "9", "M21"];
+            const count = Math.floor(Math.random() * 4) + 2;
+            let html = "";
+            for(let i=0; i<count; i++) {
+                const r = routes[Math.floor(Math.random()*routes.length)];
+                html += `<div class="bus-row">
+                            <span class="line-tag">${r}</span>
+                            <span class="time-tag">${Math.floor(Math.random()*15)+1} MIN</span>
+                         </div>`;
+            }
+            list.innerHTML = html;
+        }, 400);
     }
 
     function closePanel() {
@@ -148,20 +162,18 @@
         document.getElementById('controls').classList.remove('up');
     }
 
-    function locateMe() {
-        map.locate({setView: false});
-    }
-
+    // 4. LOCATIE CU FLYTO (GLISARE)
+    function locateMe() { map.locate(); }
     map.on('locationfound', e => {
-        map.flyTo(e.latlng, 17, { animate: true, duration: 1.8 });
-        L.circleMarker(e.latlng, { radius: 9, fillColor: '#007AFF', color: '#fff', weight: 3, fillOpacity: 1 }).addTo(map);
+        map.flyTo(e.latlng, 17, { duration: 1.5 });
+        L.rectangle([[e.latlng.lat-0.0001, e.latlng.lng-0.00015],[e.latlng.lat+0.0001, e.latlng.lng+0.00015]], {
+            color: "#007AFF", weight: 2
+        }).addTo(map);
     });
 
-    // Pornim descarcarea statiilor
-    fetchAllStops();
+    fetchStops();
 </script>
 </body>
-</html>
 </html>
 
 

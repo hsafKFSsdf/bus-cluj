@@ -3,154 +3,147 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>bus-cluj-v6</title>
+    <title>bus-cluj-v7</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        :root { --primary: #4CAF50; --bg: #000; --panel-bg: #111; --border: #333; }
-        body, html { margin: 0; padding: 0; background: var(--bg); font-family: 'Courier New', monospace; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; background: #000; }
+        :root { --primary: #4CAF50; --bg: #000; --panel-bg: #111; }
+        body, html { margin: 0; padding: 0; background: var(--bg); font-family: -apple-system, sans-serif; overflow: hidden; color: white; }
+        #map { height: 100vh; width: 100vw; }
 
-        /* UI FUNCTIONAL - PATRATOS */
+        /* Controale dreapta jos - Simple & Patratoase */
         .ui-group {
             position: fixed; bottom: 20px; right: 20px;
-            display: flex; flex-direction: column; gap: 5px;
-            z-index: 1000; transition: transform 0.4s;
+            display: flex; flex-direction: column; gap: 8px;
+            z-index: 1000; transition: bottom 0.4s;
         }
-        .ui-group.up { transform: translateY(-44vh); }
+        .ui-group.up { bottom: 32vh; }
 
         .btn-sq {
-            width: 50px; height: 50px; background: #000; border: 2px solid var(--border);
-            border-radius: 0; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; fill: white; color: white; font-weight: bold;
+            width: 45px; height: 45px; background: #000; border: 1px solid #444;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; fill: white; color: white; font-size: 10px; font-weight: bold;
         }
-        .btn-sq:active { background: var(--primary); }
 
-        /* PANEL - FUNCTIONAL/GRID */
+        /* Panou Sosiri - Simplist */
         #panel {
             position: fixed; bottom: 0; left: 0; right: 0;
-            background: var(--panel-bg); border-top: 3px solid var(--primary);
-            padding: 15px; transform: translateY(100%); transition: transform 0.4s;
-            z-index: 2000; height: 40vh; color: white; display: flex; flex-direction: column;
+            background: var(--panel-bg); border-top: 1px solid #333;
+            padding: 20px; transform: translateY(100%); transition: transform 0.4s;
+            z-index: 2000; height: 28vh; overflow-y: auto;
         }
         #panel.open { transform: translateY(0); }
 
-        .panel-header { 
-            display: grid; grid-template-columns: 1fr 100px; gap: 10px;
-            border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px;
-        }
-        .st-name { font-size: 18px; font-weight: bold; color: var(--primary); text-transform: uppercase; }
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .st-name { font-size: 16px; font-weight: bold; letter-spacing: 1px; }
+        
+        .close-x { font-size: 24px; color: #666; cursor: pointer; padding: 5px; }
+        
+        .refresh-link { font-size: 11px; color: var(--primary); text-decoration: underline; cursor: pointer; }
 
-        .panel-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 15px; }
-        .action-btn { 
-            background: #222; border: 1px solid var(--border); color: white; 
-            padding: 10px; font-size: 12px; font-weight: bold; cursor: pointer; text-align: center;
-        }
-        .close-btn { background: #e31e24; border: none; }
-
-        .bus-list { overflow-y: auto; flex-grow: 1; }
         .bus-row {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 12px; border: 1px solid var(--border); margin-bottom: 5px;
+            padding: 10px 0; border-bottom: 1px solid #222;
         }
-        .line-tag { background: #fff; color: #000; padding: 2px 8px; font-weight: 900; font-size: 16px; }
-        .time-tag { color: var(--primary); font-weight: bold; font-size: 20px; }
+        .line-id { font-weight: 800; font-size: 18px; }
+        .time-val { color: var(--primary); font-weight: bold; }
 
-        #loader {
-            position: fixed; top: 0; left: 0; width: 100%; height: 3px;
-            background: var(--primary); z-index: 3000; display: none;
-        }
+        #load-bar { position: fixed; top: 0; left: 0; height: 2px; background: var(--primary); z-index: 3000; transition: width 0.3s; width: 0%; }
     </style>
 </head>
 <body>
 
-<div id="loader"></div>
+<div id="load-bar"></div>
 <div id="map"></div>
 
 <div class="ui-group" id="controls">
-    <button class="btn-sq" onclick="cycleMaps()" title="Map Type">MAP</button>
-    <button class="btn-sq" onclick="locateMe()">
-        <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06z"/></svg>
-    </button>
+    <button class="btn-sq" onclick="cycleMaps()">MAP</button>
+    <button class="btn-sq" onclick="locateMe()">GPS</button>
 </div>
 
 <div id="panel">
     <div class="panel-header">
-        <div class="st-name" id="p-name">STATION_NAME</div>
-        <div style="font-size: 10px; color: #555; text-align: right;">v6_PROD_LIVE</div>
+        <div>
+            <div class="st-name" id="p-name">STAȚIE</div>
+            <div class="refresh-link" onclick="refreshData()">Actualizează sosiri</div>
+        </div>
+        <div class="close-x" onclick="closePanel()">×</div>
     </div>
-    
-    <div class="panel-actions">
-        <button class="action-btn" onclick="refreshStation()">REFRESH_DATA</button>
-        <button class="action-btn close-btn" onclick="closePanel()">CLOSE_X</button>
-    </div>
-
-    <div class="bus-list" id="bus-list"></div>
+    <div id="bus-list"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // 1. CONFIGURARE HARTI (Default: Satelit)
+    // 1. Harti (Satelit Default)
     const layers = {
         sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
-        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'),
         street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
-        topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png')
+        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png')
     };
 
-    const map = L.map('map', { zoomControl: false, attributionControl: false, layers: [layers.sat] }).setView([46.765, 23.55], 13);
+    const map = L.map('map', { zoomControl: false, attributionControl: false, layers: [layers.sat] }).setView([46.76, 23.58], 13);
     
-    let layerKeys = Object.keys(layers);
-    let currentL = 0;
-
+    let lKeys = Object.keys(layers);
+    let curL = 0;
     function cycleMaps() {
-        map.removeLayer(layers[layerKeys[currentL]]);
-        currentL = (currentL + 1) % layerKeys.length;
-        map.addLayer(layers[layerKeys[currentL]]);
+        map.removeLayer(layers[lKeys[curL]]);
+        curL = (curL + 1) % lKeys.length;
+        map.addLayer(layers[lKeys[curL]]);
     }
 
-    // 2. DOWNLOAD AUTOMAT STATII (Overpass API)
+    // 2. Localizare Automata (Cerinta 1 & 3)
+    function locateMe() {
+        map.locate({setView: false, enableHighAccuracy: true});
+    }
+
+    map.on('locationfound', e => {
+        map.flyTo(e.latlng, 16, { duration: 1.5 }); // Glisare lina
+        L.circleMarker(e.latlng, { radius: 7, fillColor: '#007AFF', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+    });
+
+    // 3. Incarcare Statii (OSM)
     async function fetchStops() {
-        document.getElementById('loader').style.display = 'block';
+        const bar = document.getElementById('load-bar');
+        bar.style.width = "30%";
         const query = `[out:json];node["highway"="bus_stop"](46.70,23.40,46.85,23.70);out body;`;
         const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
 
         try {
             const res = await fetch(url);
             const data = await res.json();
+            bar.style.width = "100%";
             data.elements.forEach(s => {
-                L.rectangle([[s.lat - 0.0001, s.lon - 0.00015], [s.lat + 0.0001, s.lon + 0.00015]], {
-                    color: "#fff", fillColor: "#4CAF50", fillOpacity: 1, weight: 1
-                }).addTo(map).on('click', () => openStation(s.tags.name || "UNNAMED_STOP"));
+                L.circleMarker([s.lat, s.lon], {
+                    radius: 5, fillColor: '#4CAF50', color: '#fff', weight: 1, fillOpacity: 0.9
+                }).addTo(map).on('click', () => openStation(s.tags.name || "Stație CTP"));
             });
-        } catch (e) { console.error("API_ERR"); }
-        document.getElementById('loader').style.display = 'none';
+            setTimeout(() => bar.style.width = "0%", 500);
+        } catch (e) { bar.style.background = "red"; }
     }
 
-    // 3. LOGICA PANOU
-    let lastOpened = "";
+    // 4. Panou sosiri
+    let activeStation = "";
     function openStation(name) {
-        lastOpened = name;
-        document.getElementById('p-name').innerText = name.toUpperCase();
-        refreshStation();
+        activeStation = name;
+        document.getElementById('p-name').innerText = name;
+        refreshData();
         document.getElementById('panel').classList.add('open');
         document.getElementById('controls').classList.add('up');
     }
 
-    function refreshStation() {
+    function refreshData() {
         const list = document.getElementById('bus-list');
-        list.innerHTML = `<div style="font-size:10px; color:var(--primary)">LOADING_REAL_TIME_STREAM...</div>`;
+        list.innerHTML = `<div style="font-size:12px; color:#555; padding:10px 0;">Se caută autobuze...</div>`;
         
         setTimeout(() => {
-            const routes = ["24B", "M26", "6", "30", "9", "M21"];
-            const count = Math.floor(Math.random() * 4) + 2;
+            const lines = ["24B", "6", "M26", "30", "9", "M21"];
             let html = "";
-            for(let i=0; i<count; i++) {
-                const r = routes[Math.floor(Math.random()*routes.length)];
+            for(let i=0; i < (Math.floor(Math.random()*3)+2); i++) {
+                const l = lines[Math.floor(Math.random()*lines.length)];
                 html += `<div class="bus-row">
-                            <span class="line-tag">${r}</span>
-                            <span class="time-tag">${Math.floor(Math.random()*15)+1} MIN</span>
+                            <span class="line-id">${l}</span>
+                            <span class="time-val">${Math.floor(Math.random()*15)+1} min</span>
                          </div>`;
             }
             list.innerHTML = html;
@@ -162,18 +155,10 @@
         document.getElementById('controls').classList.remove('up');
     }
 
-    // 4. LOCATIE CU FLYTO (GLISARE)
-    function locateMe() { map.locate(); }
-    map.on('locationfound', e => {
-        map.flyTo(e.latlng, 17, { duration: 1.5 });
-        L.rectangle([[e.latlng.lat-0.0001, e.latlng.lng-0.00015],[e.latlng.lat+0.0001, e.latlng.lng+0.00015]], {
-            color: "#007AFF", weight: 2
-        }).addTo(map);
-    });
-
+    // Initializeaza
+    locateMe();
     fetchStops();
 </script>
 </body>
 </html>
-
 

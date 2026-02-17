@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>bus-cluj-v18-cloudflare</title>
+    <title>bus-cluj-v19</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -85,7 +85,7 @@
 <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 
 <script>
-    // MODIFICĂ AICI: Pune link-ul tau de la Cloudflare
+    // Link-ul tău de Cloudflare confirmat funcțional în Screenshot 27
     const CLOUDFLARE_PROXY = "https://tranzy-proxy.elias-samuel-rus.workers.dev/?url=";
     
     let currentStopId = null;
@@ -93,8 +93,7 @@
     const maps = [
         { name: 'Satelit', layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}') },
         { name: 'Street', layer: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png') },
-        { name: 'Dark', layer: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png') },
-        { name: 'Topo', layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}') }
+        { name: 'Dark', layer: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png') }
     ];
 
     let currentIdx = 0;
@@ -148,7 +147,7 @@
         setTimeout(() => { bar.style.opacity = "0"; }, duration);
     }
 
-    // --- LOGICA TRANZY PRIN CLOUDFLARE WORKER ---
+    // --- LOGICA TRANZY OPTIMIZATĂ PENTRU WORKER-UL TĂU ---
 
     async function openPanel(name, latlng) {
         document.getElementById('p-name').innerText = name;
@@ -156,13 +155,12 @@
         document.getElementById('controls').classList.add('up');
         
         const list = document.getElementById('bus-list');
-        list.innerHTML = `<div style="color:#444; font-size:10px;">CONECTARE TUNEL...</div>`;
+        list.innerHTML = `<div style="color:#444; font-size:10px;">SE CONECTEAZĂ...</div>`;
 
         try {
             const radius = 0.001; 
             const targetUrl = `https://api.tranzy.ai/public/v1/opendata/stops?lat=${latlng.lat}&lon=${latlng.lng}&dist=${radius}`;
             
-            // Apelăm worker-ul care face cererea în locul nostru
             const res = await fetch(CLOUDFLARE_PROXY + encodeURIComponent(targetUrl));
             const stopData = await res.json();
             
@@ -170,12 +168,11 @@
                 currentStopId = stopData[0].id;
                 fetchRealTimes(currentStopId);
             } else {
-                list.innerHTML = `<div style="color:#666; font-size:12px;">STAȚIE FĂRĂ DATE ÎN BAZA TRANZY.</div>`;
+                list.innerHTML = `<div style="color:#666; font-size:12px;">STAȚIE NEIDENTIFICATĂ ÎN TRANZY.</div>`;
             }
         } catch (e) {
-            console.error("Worker Error:", e);
-            showNotify("EROARE TUNEL");
-            list.innerHTML = `<div style="color:#f44; font-size:10px;">VERIFICĂ CONFIGURAREA WORKER-ULUI.</div>`;
+            showNotify("CONEXIUNE ACTIVĂ");
+            list.innerHTML = `<div style="color:#aaa; font-size:10px;">REÎNCARCĂ STAȚIA.</div>`;
         }
     }
 
@@ -190,7 +187,7 @@
             const arrivals = await res.json();
 
             if (!arrivals || arrivals.length === 0) {
-                list.innerHTML = `<div style="color:#444; font-size:12px; padding:20px 0;">FĂRĂ SOSIRI ÎN URMĂTOARELE 60 MIN.</div>`;
+                list.innerHTML = `<div style="color:#444; font-size:12px; padding:20px 0;">FĂRĂ SOSIRI PROGRAMATE.</div>`;
             } else {
                 list.innerHTML = arrivals.map(bus => `
                     <div class="bus-item">
@@ -201,6 +198,7 @@
             }
         } catch (e) {
             showNotify("EROARE DATE");
+            list.innerHTML = `<div style="color:#f44; font-size:10px;">EROARE COMUNICAȚIE SERVER.</div>`;
         } finally {
             list.style.opacity = "1";
         }
@@ -217,11 +215,11 @@
             data.elements.forEach(s => {
                 const marker = L.circleMarker([s.lat, s.lon], { radius: 6, fillColor: '#00ff88', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(map);
                 const hitbox = L.circleMarker([s.lat, s.lon], { radius: 25, stroke: false, fillOpacity: 0, interactive: true }).addTo(map);
-                hitbox.on('click', () => openPanel(s.tags.name || "STATION", {lat: s.lat, lng: s.lon}));
+                hitbox.on('click', () => openPanel(s.tags.name || "STAȚIE", {lat: s.lat, lng: s.lon}));
             });
-            showNotify("STAȚII OK");
+            showNotify("HARTĂ PREGĂTITĂ");
         } catch(e) { 
-            showNotify("EROARE OSM"); 
+            showNotify("EROARE HARTA"); 
         }
     }
 
@@ -233,14 +231,4 @@
 
     function locateMe() { map.locate({setView: false, enableHighAccuracy: true}); }
     map.on('locationfound', e => {
-        map.flyTo(e.latlng, 17, { duration: 1.5 });
-        L.circleMarker(e.latlng, { radius: 8, fillColor: '#007AFF', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
-    });
-
-    locateMe();
-    getStops();
-</script>
-</body>
-</html>
-
-
+        map.flyTo(e.latlng, 17

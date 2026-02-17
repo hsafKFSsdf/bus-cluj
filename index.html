@@ -59,6 +59,29 @@
         .bus-item { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid #151515; }
         .line { color: var(--accent); font-weight: 800; font-size: 18px; }
         .eta { color: #666; font-size: 13px; }
+
+        /* 🚍 BUS ICON */
+        .bus-icon { }
+        .bus-badge{
+            width:34px;height:34px;border-radius:50%;
+            background:#ff2d2d;border:2px solid #fff;
+            display:flex;align-items:center;justify-content:center;
+            font-weight:900;color:#fff;font-size:12px;
+            box-shadow:0 6px 16px rgba(0,0,0,.45);
+            transform-origin: 50% 50%;
+        }
+        .bus-badge span{
+            transform: rotate(0deg);
+            letter-spacing: .2px;
+        }
+
+        /* 🚌 Stop icon (mai clar) */
+        .stop-dot{
+            width:10px;height:10px;border-radius:50%;
+            background: var(--accent);
+            border: 2px solid #fff;
+            box-shadow: 0 4px 14px rgba(0,0,0,.5);
+        }
     </style>
 </head>
 <body>
@@ -106,9 +129,7 @@
 
     // Eroare incarcare harta (Tile Error)
     maps.forEach(m => {
-        m.layer.on('tileerror', () => {
-            showNotify("EROARE HARTĂ: DĂ REFRESH LA PAGINĂ", 5000);
-        });
+        m.layer.on('tileerror', () => showNotify("EROARE HARTĂ: DĂ REFRESH LA PAGINĂ", 5000));
     });
 
     function cycleMaps() {
@@ -158,14 +179,60 @@
     }
 
     // ---------------------------
-    // 🚍 LIVE VEHICLES (BusMaps via backend local)
+    // 🚍 LIVE VEHICLES (BusMaps via backend)
     // ---------------------------
     const BACKEND_URL = "https://bus-backend-607g.onrender.com/api/vehicles";
-    let vehicleLayer = L.layerGroup().addTo(map);
+
+    // marker cache: id -> marker (smooth)
+    const busMarkers = new Map();
+    const vehicleLayer = L.layerGroup().addTo(map);
+
+    function busIcon(line, bearing) {
+        const rot = Number.isFinite(bearing) ? bearing : 0;
+        const txt = (line ?? '').toString().slice(0, 4); // scurt
+        return L.divIcon({
+            className: 'bus-icon',
+            html: `<div class="bus-badge" style="transform:rotate(${rot}deg)"><span>${txt}</span></div>`,
+            iconSize: [34, 34],
+            iconAnchor: [17, 17]
+        });
+    }
+
+    function updateOrCreateBus(v) {
+        const id = String(v.id ?? '');
+        if (!id || !Number.isFinite(v.lat) || !Number.isFinite(v.lon)) return;
+
+        const existing = busMarkers.get(id);
+        const latlng = [v.lat, v.lon];
+        const label = v.line ? `Linia ${v.line}` : "BUS";
+
+        if (existing) {
+            existing.setLatLng(latlng);
+            existing.setIcon(busIcon(v.line, v.bearing));
+            existing.setTooltipContent(label);
+        } else {
+            const m = L.marker(latlng, { icon: busIcon(v.line, v.bearing) })
+                .addTo(vehicleLayer)
+                .bindTooltip(label, { direction: "top", offset: [0, -6] });
+
+            // click = zoom putin pe bus (nice UX)
+            m.on('click', () => map.flyTo(latlng, Math.max(map.getZoom(), 16), { duration: 0.6 }));
+            busMarkers.set(id, m);
+        }
+    }
+
+    function removeMissingBuses(seenIds) {
+        for (const [id, marker] of busMarkers.entries()) {
+            if (!seenIds.has(id)) {
+                vehicleLayer.removeLayer(marker);
+                busMarkers.delete(id);
+            }
+        }
+    }
 
     async function loadVehicles() {
         try {
-            const res = await fetch(BACKEND_URL);
+            const res = await fetch(BACKEND_URL, { cache: "no-store" });
             const data = await res.json();
 
             if (!data || !Array.isArray(data.vehicles)) {
@@ -173,59 +240,129 @@
                 return;
             }
 
-            vehicleLayer.clearLayers();
-
+            const seen = new Set();
             data.vehicles.forEach(v => {
-                const label = v.line ? `Linia ${v.line}` : "BUS";
-
-                L.circleMarker([v.lat, v.lon], {
-                    radius: 7,
-                    fillColor: "#ff0000",
-                    color: "#fff",
-                    weight: 1,
-                    fillOpacity: 1
-                })
-                .addTo(vehicleLayer)
-                .bindTooltip(label, { direction: "top", offset: [0, -6] });
+                const id = String(v.id ?? '');
+                seen.add(id);
+                updateOrCreateBus(v);
             });
+            removeMissingBuses(seen);
 
         } catch (e) {
-            showNotify("EROARE LIVE (PORNEȘTE SERVERUL)", 3500);
+            showNotify("EROARE LIVE (BACKEND)", 3500);
         }
     }
 
-    // actualizează la 5 sec
     setInterval(loadVehicles, 5000);
-    // pornește imediat
     loadVehicles();
 
-    // 4. Stații (OSM)
+    // ---------------------------
+    // 🛑 STOPS (OSM via Overpass) - mai “reale” ca selectie si cache
+    // ---------------------------
+    const stopsLayer = L.layerGroup().addTo(map);
+
+    function stopIcon() {
+        return L.divIcon({
+            className: '',
+            html: `<div class="stop-dot"></div>`,
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+        });
+    }
+
+    function normalizeStopName(name) {
+        return (name || '').trim().replace(/\s+/g, ' ');
+    }
+
     async function getStops() {
         showNotify("ÎNCĂRCARE STAȚII...");
-        const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(`[out:json];node["highway"="bus_stop"](46.70,23.40,46.85,23.70);out body;`);
+
+        // 1) cache in localStorage (24h)
+        const cacheKey = "cj_stops_v2";
+        const cacheTsKey = "cj_stops_v2_ts";
+        const now = Date.now();
+        const maxAge = 24 * 60 * 60 * 1000;
+
+        try {
+            const cached = localStorage.getItem(cacheKey);
+            const cachedTs = Number(localStorage.getItem(cacheTsKey) || 0);
+            if (cached && (now - cachedTs) < maxAge) {
+                const data = JSON.parse(cached);
+                renderStops(data);
+                showNotify("STAȚII (CACHE) OK");
+                return;
+            }
+        } catch (_) {}
+
+        // 2) query Overpass mai bun:
+        // - public_transport=platform (platforme statii)
+        // - highway=bus_stop (semne)
+        // luam doar in bbox Cluj
+        const query = `
+[out:json][timeout:25];
+(
+  node["public_transport"="platform"]["name"](46.70,23.40,46.85,23.70);
+  node["highway"="bus_stop"]["name"](46.70,23.40,46.85,23.70);
+);
+out body;
+        `.trim();
+
+        const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
+
         try {
             const res = await fetch(url);
-            if(!res.ok) throw new Error();
+            if(!res.ok) throw new Error("overpass bad");
+
             const data = await res.json();
-            data.elements.forEach(s => {
-                L.circleMarker([s.lat, s.lon], { radius: 6, fillColor: '#00ff88', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(map);
-                L.circleMarker([s.lat, s.lon], { radius: 25, stroke: false, fillOpacity: 0, interactive: true })
-                 .addTo(map).on('click', () => openPanel(s.tags.name || "STATION"));
-            });
+
+            // salveaza cache
+            try {
+                localStorage.setItem(cacheKey, JSON.stringify(data));
+                localStorage.setItem(cacheTsKey, String(Date.now()));
+            } catch (_) {}
+
+            renderStops(data);
             showNotify("STAȚII OK");
         } catch(e) {
-            showNotify("EROARE: REÎNCARCĂ PAGINA (REFRESH)", 6000);
+            showNotify("EROARE STAȚII (REFRESH)", 6000);
         }
+    }
+
+    function renderStops(data) {
+        stopsLayer.clearLayers();
+
+        // dedup aproximativ (multe sunt duplicate)
+        const seen = new Set();
+
+        (data.elements || []).forEach(s => {
+            const name = normalizeStopName(s.tags?.name || "");
+            if (!name) return;
+
+            // cheie dedup = nume + grid (rotunjire)
+            const key = `${name}_${s.lat.toFixed(4)}_${s.lon.toFixed(4)}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+
+            const marker = L.marker([s.lat, s.lon], { icon: stopIcon() })
+                .addTo(stopsLayer);
+
+            // click hitbox mare
+            const hit = L.circleMarker([s.lat, s.lon], { radius: 22, stroke: false, fillOpacity: 0, interactive: true })
+                .addTo(stopsLayer);
+
+            hit.on('click', () => openPanel(name));
+            marker.on('click', () => openPanel(name));
+        });
     }
 
     function openPanel(name) {
         document.getElementById('p-name').innerText = name;
-        refreshData();
+        refreshData(); // inca mock; ETA real = necesita GTFS/GTFS-RT
         document.getElementById('panel').classList.add('open');
         document.getElementById('controls').classList.add('up');
     }
 
-    // încă mock în panel (îl facem real după ce pui GTFS/static sau endpoint de ETA)
+    // încă mock în panel (ETA real -> Tranzy/CTP GTFS-RT)
     function refreshData() {
         const list = document.getElementById('bus-list');
         list.style.opacity = "0.3";
@@ -238,7 +375,7 @@
                 </div>
             `).join('');
             list.style.opacity = "1";
-        }, 300);
+        }, 250);
     }
 
     function closePanel() {
@@ -257,6 +394,4 @@
 </script>
 </body>
 </html>
-
-
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>bus-cluj-v16-rt</title>
+    <title>bus-cluj-v17-rt</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -86,7 +86,6 @@
 
 <script>
     const API_KEY = 'yyAwUKMbMg7GFnXqDqQxfGEATuRpXGrsywdhaHZO';
-    const PROXY = "https://api.allorigins.win/raw?url=";
     let currentStopId = null;
 
     const maps = [
@@ -147,7 +146,7 @@
         setTimeout(() => { bar.style.opacity = "0"; }, duration);
     }
 
-    // --- LOGICA TRANZY REAL-TIME CU ALLORIGINS PROXY ---
+    // --- LOGICA TRANZY DIRECTĂ (FĂRĂ PROXY) ---
 
     async function openPanel(name, latlng) {
         document.getElementById('p-name').innerText = name;
@@ -155,31 +154,31 @@
         document.getElementById('controls').classList.add('up');
         
         const list = document.getElementById('bus-list');
-        list.innerHTML = `<div style="color:#444; font-size:10px; letter-spacing:1px;">CONECTARE TRANZY...</div>`;
+        list.innerHTML = `<div style="color:#444; font-size:10px;">IDENTIFICARE TRANZY...</div>`;
 
         try {
             const radius = 0.001; 
-            const targetUrl = `https://api.tranzy.ai/public/v1/opendata/stops?lat=${latlng.lat}&lon=${latlng.lng}&dist=${radius}`;
+            const url = `https://api.tranzy.ai/public/v1/opendata/stops?lat=${latlng.lat}&lon=${latlng.lng}&dist=${radius}`;
             
-            const res = await fetch(PROXY + encodeURIComponent(targetUrl), {
+            const findStop = await fetch(url, {
                 headers: { 
                     'X-Agency-Id': 'cluj', 
-                    'X-API-KEY': API_KEY
+                    'X-API-KEY': API_KEY,
+                    'Accept': 'application/json'
                 }
             });
-            
-            if (!res.ok) throw new Error();
-            const stopData = await res.json();
+            const stopData = await findStop.json();
             
             if (stopData && stopData.length > 0) {
                 currentStopId = stopData[0].id;
                 fetchRealTimes(currentStopId);
             } else {
-                list.innerHTML = `<div style="color:#666; font-size:12px;">STAȚIE NECUNOSCUTĂ ÎN BAZĂ.</div>`;
+                list.innerHTML = `<div style="color:#666; font-size:12px;">STAȚIA NU ESTE ÎN BAZA RT.</div>`;
             }
         } catch (e) {
-            showNotify("EROARE SERVER TRANZY");
-            list.innerHTML = `<div style="color:#f44; font-size:11px;">SERVERUL NU RĂSPUNDE (502).</div>`;
+            console.error(e);
+            showNotify("EROARE CONEXIUNE");
+            list.innerHTML = `<div style="color:#666;">Verifică dacă whitelist-ul este activ pe Tranzy.</div>`;
         }
     }
 
@@ -189,17 +188,18 @@
         list.style.opacity = "0.3";
         
         try {
-            const targetUrl = `https://api.tranzy.ai/public/v1/opendata/stops/${stopId}/arrivals`;
-            const res = await fetch(PROXY + encodeURIComponent(targetUrl), {
+            const url = `https://api.tranzy.ai/public/v1/opendata/stops/${stopId}/arrivals`;
+            const res = await fetch(url, {
                 headers: { 
                     'X-Agency-Id': 'cluj', 
-                    'X-API-KEY': API_KEY
+                    'X-API-KEY': API_KEY,
+                    'Accept': 'application/json'
                 }
             });
             const arrivals = await res.json();
 
             if (!arrivals || arrivals.length === 0) {
-                list.innerHTML = `<div style="color:#444; font-size:12px; padding:20px 0;">FĂRĂ SOSIRI ÎN URMĂTOAREA ORĂ.</div>`;
+                list.innerHTML = `<div style="color:#444; font-size:12px; padding:20px 0;">FĂRĂ SOSIRI PROGRAMATE.</div>`;
             } else {
                 list.innerHTML = arrivals.map(bus => `
                     <div class="bus-item">
@@ -209,15 +209,13 @@
                 `).join('');
             }
         } catch (e) {
-            showNotify("EROARE TIMPI REALI");
+            showNotify("EROARE DATE");
         } finally {
             list.style.opacity = "1";
         }
     }
 
     document.getElementById('reloader-btn').addEventListener('click', () => fetchRealTimes(currentStopId));
-
-    // --- INITIALIZARE STATII (OSM) ---
 
     async function getStops() {
         showNotify("ÎNCĂRCARE STAȚII...");
@@ -228,12 +226,11 @@
             data.elements.forEach(s => {
                 const marker = L.circleMarker([s.lat, s.lon], { radius: 6, fillColor: '#00ff88', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(map);
                 const hitbox = L.circleMarker([s.lat, s.lon], { radius: 25, stroke: false, fillOpacity: 0, interactive: true }).addTo(map);
-                
                 hitbox.on('click', () => openPanel(s.tags.name || "STATION", {lat: s.lat, lng: s.lon}));
             });
             showNotify("STAȚII OK");
         } catch(e) { 
-            showNotify("EROARE: REÎNCARCĂ PAGINA", 6000); 
+            showNotify("EROARE OSM"); 
         }
     }
 
